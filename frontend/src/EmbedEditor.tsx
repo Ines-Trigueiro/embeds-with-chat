@@ -9,7 +9,7 @@ import { currentLanguage, type Language } from "./i18n";
 import { Icon } from "./Icon";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
-import { PublishPanel } from "./PublishPanel";
+import { PublishDialog } from "./PublishDialog";
 
 interface Turn extends Message {
   error?: string;
@@ -40,7 +40,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const [device, setDevice] = useState<Device>("mobile");
   const [pane, setPane] = useState<"chat" | "preview">("chat"); // Phones show one at a time.
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false); // The publish dialog is open.
   const [attachError, setAttachError] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -134,19 +134,10 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
     }
   }
 
-  async function publish(shown: Version) {
-    if (!embed) return;
-    const warnings = shown.findings.filter((f) => f.severity === "warn");
-    if (warnings.length > 0 && !window.confirm(t("quality.confirm", { count: warnings.length }))) return;
-    setPublishError(null);
-    try {
-      const updated = await api.publish(journalist, embed.id, shown.number, warnings.length > 0);
-      setEmbed(updated);
-      setVersions(updated.versions);
-      onChanged({ id: embed.id, published: true });
-    } catch (e) {
-      setPublishError((e as Error).message);
-    }
+  function published(updated: OpenedEmbed) {
+    setEmbed(updated);
+    setVersions(updated.versions);
+    onChanged({ id: updated.id, published: true });
   }
 
   async function changeEmbedLanguage(embed_language: Language) {
@@ -319,19 +310,38 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
               </select>
             </label>
           )}
-          {version &&
-            (version.published ? (
-              <span className="published">{t("publish.published")}</span>
-            ) : (
-              <button
-                className="primary"
-                disabled={streaming || blocked}
-                title={blocked ? t("quality.cannotPublish") : undefined}
-                onClick={() => publish(version)}
-              >
-                {t("publish.publish", { number: version.number })}
-              </button>
-            ))}
+          {version && embed && (
+            <span className="publish-actions">
+              {version.published ? (
+                <span className="badge-published">
+                  <Icon name="check" size={14} />
+                  {t("publish.published")}
+                </span>
+              ) : (
+                <button
+                  className="primary"
+                  disabled={streaming}
+                  title={blocked ? t("quality.cannotPublish") : undefined}
+                  onClick={() => setPublishing(true)}
+                >
+                  <Icon name="publish" size={16} />
+                  {t("publish.publish", { number: version.number })}
+                </button>
+              )}
+              {(version.published || embed.delivery) && (
+                <button
+                  className={version.published ? "primary" : "icon-only"}
+                  disabled={streaming}
+                  title={t("publish.getCode")}
+                  aria-label={t("publish.getCode")}
+                  onClick={() => setPublishing(true)}
+                >
+                  <Icon name="code" size={16} />
+                  {version.published && t("publish.getCode")}
+                </button>
+              )}
+            </span>
+          )}
           <div className="toggle" role="group" aria-label={t("editor.previewSize")}>
             {(["mobile", "desktop"] as const).map((d) => (
               <button
@@ -346,13 +356,6 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
           </div>
         </div>
         {version && !streaming && <Findings findings={version.findings} />}
-        {publishError && <p className="error">{publishError}</p>}
-        {embed?.delivery && (
-          <details className="publish-details">
-            <summary>{t("publish.heading")}</summary>
-            <PublishPanel embed={embed} shown={version} />
-          </details>
-        )}
         <Preview
           versionUrl={version?.preview_url ?? null}
           progressFrameUrl={embed?.progress_frame_url ?? ""}
@@ -360,6 +363,15 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
           device={device}
         />
       </section>
+      {publishing && embed && version && (
+        <PublishDialog
+          journalist={journalist}
+          embed={embed}
+          version={version}
+          onClose={() => setPublishing(false)}
+          onPublished={published}
+        />
+      )}
     </div>
   );
 }
