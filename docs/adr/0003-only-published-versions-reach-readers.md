@@ -1,0 +1,3 @@
+# Versions are immutable and only explicitly published versions reach readers
+
+Every model reply that contains HTML creates a new immutable version, with its dataset already injected. Readers can only reach versions the journalist has explicitly published, and publishing is gated by the quality check. A snippet either follows the latest published version or is pinned to one with `data-version`. Unpublished versions return 404 on the embed origin. We rejected a single mutable document per embed, because it would let a half-finished edit, or an edit that never passed the quality check, reach readers of an article that is already live.
