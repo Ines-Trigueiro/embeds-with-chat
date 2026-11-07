@@ -1,6 +1,7 @@
 """One chat turn: stream the model's reply as events, and keep the result.
 
 Events, in order:
+- `title`    {"title"}        the embed's suggested Title (first message of an untitled embed only)
 - `guide`    {"name"}         the model is reading a guide (zero or more)
 - `text`     {"delta"}        prose for the chat, as it arrives
 - `progress` {"html"}         the work in progress, at most about once a second
@@ -23,6 +24,7 @@ from embeds.images import MAX_IMAGES_FOR_MODEL, ImageForModel, image_url
 from embeds.languages import Language, with_document_language
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
 from embeds.store import Embed, Store, Version
+from embeds.titles import suggest_title
 
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_GUIDE_ROUNDS = 3
@@ -40,6 +42,11 @@ async def chat_turn(
     embed_origin: str,
 ) -> AsyncIterator[ChatEvent]:
     embed_id = embed.id
+    if embed.title is None:
+        # Before the reply, so the sidebar can name the embed while the journalist waits.
+        title = await suggest_title(model, content)
+        store.set_title(embed_id, title)
+        yield "title", {"title": title}
     conversation = store.messages_of(embed_id)
     latest = store.latest_version(embed_id)
     attachments = store.attachments_of(embed_id)

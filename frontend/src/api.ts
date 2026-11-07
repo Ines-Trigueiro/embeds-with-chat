@@ -31,9 +31,12 @@ export function forgetJournalist(): void {
 
 export interface Embed {
   id: string;
-  title: string;
+  /** Null until one is suggested from the journalist's first message. */
+  title: string | null;
   created_at: string;
   embed_language: Language;
+  /** Whether any version is published. */
+  published: boolean;
 }
 
 export interface Version {
@@ -91,6 +94,7 @@ export interface OpenedEmbed extends Embed {
 
 /** Server-sent events from one chat turn; see the backend's chat module. */
 export type ChatEvent =
+  | { event: "title"; data: { title: string } }
   | { event: "guide"; data: { name: string } }
   | { event: "text"; data: { delta: string } }
   | { event: "progress"; data: { html: string } }
@@ -164,10 +168,16 @@ export const api = {
   openEmbed: (journalist: string, embedId: string) =>
     request<OpenedEmbed>(journalist, `/api/embeds/${embedId}`),
   myEmbeds: (journalist: string) => request<Embed[]>(journalist, "/api/embeds"),
-  createEmbed: (journalist: string, title: string, embed_language: Language) =>
+  /** Without a title: the server suggests one from the first message. */
+  createEmbed: (journalist: string, embed_language: Language) =>
     request<Embed>(journalist, "/api/embeds", {
       method: "POST",
-      body: JSON.stringify({ title, embed_language }),
+      body: JSON.stringify({ embed_language }),
+    }),
+  rename: (journalist: string, embedId: string, title: string) =>
+    request<Embed>(journalist, `/api/embeds/${embedId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
     }),
   publish: (journalist: string, embedId: string, number: number, acceptWarnings: boolean) =>
     request<OpenedEmbed>(

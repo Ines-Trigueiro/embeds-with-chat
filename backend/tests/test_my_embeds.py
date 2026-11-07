@@ -2,7 +2,7 @@ from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
-from conftest import FakeChatModel, as_journalist
+from conftest import FakeChatModel, as_journalist, chat
 from embeds.config import Settings
 from embeds.editor import create_editor_app
 
@@ -76,3 +76,105 @@ def test_encoded_and_plain_spellings_of_a_name_are_the_same_journalist(editor: T
 
 def test_badly_encoded_journalist_names_are_rejected(editor: TestClient) -> None:
     assert editor.get("/api/embeds", headers={"X-Journalist": "%FF"}).status_code == 422
+
+
+# Titles: suggested from the journalist's first message, editable, never overwritten.
+
+
+def test_an_embed_can_be_created_without_a_title(editor: TestClient) -> None:
+    created = editor.post("/api/embeds", json={}, headers=as_journalist("kari"))
+
+    assert created.status_code == 201
+    assert created.json()["title"] is None
+
+
+def untitled_embed(editor: TestClient) -> str:
+    embed_id: str = editor.post("/api/embeds", json={}, headers=as_journalist("kari")).json()["id"]
+    return embed_id
+
+
+def listed_titles(editor: TestClient) -> list[str | None]:
+    return [e["title"] for e in editor.get("/api/embeds", headers=as_journalist("kari")).json()]
+
+
+def test_the_first_message_suggests_a_title_before_the_reply(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    fake_model.replies += ['"Quiz: norske fjell"', "How many questions?"]
+    embed_id = untitled_embed(editor)
+
+    events = chat(editor, embed_id, "Lag en quiz om norske fjell")
+
+    assert events[0] == ("title", {"title": "Quiz: norske fjell"})
+    assert listed_titles(editor) == ["Quiz: norske fjell"]
+    assert "Lag en quiz om norske fjell" in fake_model.received[0][-1].text
+
+
+def test_the_title_falls_back_to_the_start_of_the_message_when_no_suggestion_comes(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    fake_model.replies += [RuntimeError("rate limited"), "How many questions?"]
+    embed_id = untitled_embed(editor)
+    message = "Lag en quiz om norske fjell med ti spørsmål, bilder og en poengtavle til slutt"
+
+    events = chat(editor, embed_id, message)
+
+    (title,) = [data["title"] for event, data in events if event == "title"]
+    assert title == "Lag en quiz om norske fjell med ti spørsmål, bilder og en…"
+    assert listed_titles(editor) == [title]
+
+
+def test_a_title_is_suggested_only_once(editor: TestClient, fake_model: FakeChatModel) -> None:
+    fake_model.replies += ["Valgquiz", "Done.", "Done again."]
+    embed_id = untitled_embed(editor)
+    chat(editor, embed_id, "Lag en valgquiz")
+
+    events = chat(editor, embed_id, "Gjør knappene større")
+
+    assert [e for e, _ in events if e == "title"] == []
+    assert len(fake_model.received) == 3  # title, first reply, second reply: no new suggestion
+    assert listed_titles(editor) == ["Valgquiz"]
+
+
+def test_an_embed_created_with_a_title_gets_no_suggestion(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    fake_model.replies.append("Done.")
+    embed_id = editor.post(
+        "/api/embeds", json={"title": "Strømpris"}, headers=as_journalist("kari")
+    ).json()["id"]
+
+    events = chat(editor, embed_id, "Lag en kalkulator")
+
+    assert [e for e, _ in events if e == "title"] == []
+    assert listed_titles(editor) == ["Strømpris"]
+
+
+def test_the_journalist_can_rename_an_embed(editor: TestClient, fake_model: FakeChatModel) -> None:
+    fake_model.replies += ["Valgquiz", "Done.", "Done again."]
+    embed_id = untitled_embed(editor)
+    chat(editor, embed_id, "Lag en valgquiz")
+
+    renamed = editor.patch(
+        f"/api/embeds/{embed_id}", json={"title": "  Stortingsvalget 2029  "}, headers=as_journalist("kari")
+    )
+    chat(editor, embed_id, "Gjør knappene større")
+
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "Stortingsvalget 2029"
+    assert listed_titles(editor) == ["Stortingsvalget 2029"]
+
+
+def test_renaming_rejects_empty_and_overlong_titles_and_other_journalists(editor: TestClient) -> None:
+    embed_id = untitled_embed(editor)
+
+    def rename(title: str, journalist: str = "kari") -> int:
+        response = editor.patch(
+            f"/api/embeds/{embed_id}", json={"title": title}, headers=as_journalist(journalist)
+        )
+        return response.status_code
+
+    assert rename("   ") == 422
+    assert rename("x" * 201) == 422
+    assert rename("Mine", journalist="ola") == 404
+    assert listed_titles(editor) == [None]

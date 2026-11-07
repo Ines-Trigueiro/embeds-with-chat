@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.language_models import BaseChatModel
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
@@ -49,28 +49,36 @@ def journalist_name(
 Journalist = Annotated[str, Depends(journalist_name)]
 
 
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
 class NewEmbed(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    title: Title | None = None  # Left out, it is suggested from the first message.
     embed_language: Language = "nb"
 
 
 class EmbedChanges(BaseModel):
-    embed_language: Language
+    """Only the fields that are sent change."""
+
+    embed_language: Language | None = None
+    title: Title | None = None
 
 
 class EmbedOut(BaseModel):
     id: str
-    title: str
+    title: str | None  # None until suggested from the journalist's first message.
     created_at: str
     embed_language: Language
+    published: bool  # Whether any version is published.
 
     @classmethod
-    def of(cls, embed: Embed) -> Self:
+    def of(cls, embed: Embed, published: bool) -> Self:
         return cls(
             id=embed.id,
             title=embed.title,
             created_at=embed.created_at,
             embed_language=embed.embed_language,
+            published=published,
         )
 
 
@@ -192,7 +200,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         published = store.published_numbers(embed.id)
         versions = [version_out(v, v.number in published) for v in store.versions_of(embed.id)]
         return OpenedEmbed(
-            **EmbedOut.of(embed).model_dump(),
+            **EmbedOut.of(embed, bool(published)).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed.id)],
             attachments=[AttachmentOut.of(a, origin) for a in store.attachments_of(embed.id)],
             versions=versions,
@@ -209,11 +217,12 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.post("/api/embeds", status_code=201)
     def create_embed(body: NewEmbed, journalist: Journalist) -> EmbedOut:
-        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language))
+        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language), False)
 
     @app.get("/api/embeds")
     def my_embeds(journalist: Journalist) -> list[EmbedOut]:
-        return [EmbedOut.of(embed) for embed in store.embeds_of(journalist)]
+        published = store.published_embed_ids(journalist)
+        return [EmbedOut.of(embed, embed.id in published) for embed in store.embeds_of(journalist)]
 
     @app.get("/api/embeds/{embed_id}")
     def open_embed(embed_id: str, journalist: Journalist) -> OpenedEmbed:
@@ -267,8 +276,13 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     @app.patch("/api/embeds/{embed_id}")
     def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:
         embed = owned_embed(embed_id, journalist)
-        store.set_embed_language(embed_id, body.embed_language)
-        return EmbedOut.of(replace(embed, embed_language=body.embed_language))
+        if body.embed_language is not None:
+            store.set_embed_language(embed_id, body.embed_language)
+            embed = replace(embed, embed_language=body.embed_language)
+        if body.title is not None:
+            store.set_title(embed_id, body.title)
+            embed = replace(embed, title=body.title)
+        return EmbedOut.of(embed, bool(store.published_numbers(embed_id)))
 
     @app.post("/api/embeds/{embed_id}/messages")
     def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:

@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, type Attachment, type Message, type OpenedEmbed, type Version } from "./api";
+import { api, type Embed, type Message, type OpenedEmbed, type Version } from "./api";
+import { EditableTitle } from "./EditableTitle";
+import { Findings } from "./Findings";
 import { currentLanguage, type Language } from "./i18n";
+import { Icon } from "./Icon";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
-import { Findings } from "./Findings";
-import { Icon } from "./Icon";
 import { PublishPanel } from "./PublishPanel";
 
 interface Turn extends Message {
   error?: string;
 }
 
-export function EmbedEditor({ journalist, embedId }: { journalist: string; embedId: string }) {
+interface Props {
+  journalist: string;
+  /** Null for a new embed: it is created when the journalist first sends or attaches something. */
+  embedId: string | null;
+  /** The Title as the sidebar knows it, so a rename there shows here too. */
+  title: string | null;
+  onOpenSidebar: () => void;
+  onCreated: (embed: Embed) => void;
+  onChanged: (changes: Pick<Embed, "id"> & Partial<Embed>) => void;
+  onRename: (title: string) => void;
+}
+
+export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreated, onChanged, onRename }: Props) {
   const { t } = useTranslation();
   const [embed, setEmbed] = useState<OpenedEmbed | null>(null);
+  const [newLanguage, setNewLanguage] = useState<Language>(currentLanguage);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [versions, setVersions] = useState<Version[]>([]);
   const [shownNumber, setShownNumber] = useState<number | null>(null);
@@ -25,9 +39,16 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   const [device, setDevice] = useState<Device>("mobile");
   const [pane, setPane] = useState<"chat" | "preview">("chat"); // Phones show one at a time.
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const turnList = useRef<HTMLOListElement>(null);
+  const createdHere = useRef<string | null>(null);
 
   useEffect(() => {
+    // An embed this editor just created is already on screen, mid-reply: don't reload it.
+    if (embedId === null || embedId === createdHere.current) return;
     api.openEmbed(journalist, embedId).then(
       (opened) => {
         setEmbed(opened);
@@ -44,6 +65,17 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     const list = turnList.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [turns]);
+
+  /** The embed to work on, creating it first if this is a new one. */
+  async function ensureEmbed(): Promise<OpenedEmbed> {
+    if (embed) return embed;
+    const created = await api.createEmbed(journalist, newLanguage);
+    const opened = await api.openEmbed(journalist, created.id);
+    createdHere.current = created.id;
+    setEmbed(opened);
+    onCreated(created);
+    return opened;
+  }
 
   function updateModelTurn(update: (turn: Turn) => Turn) {
     setTurns((current) => [...current.slice(0, -1), update(current[current.length - 1])]);
@@ -62,10 +94,13 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     ]);
 
     try {
-      const events = api.sendMessage(journalist, embedId, content, currentLanguage());
+      const { id } = await ensureEmbed();
+      const events = api.sendMessage(journalist, id, content, currentLanguage());
       for await (const { event, data } of events) {
-        if (event === "guide")
-          updateModelTurn((t) => ({ ...t, guides: [...t.guides, data.name] }));
+        if (event === "title") {
+          setEmbed((current) => current && { ...current, title: data.title });
+          onChanged({ id, title: data.title });
+        } else if (event === "guide") updateModelTurn((t) => ({ ...t, guides: [...t.guides, data.name] }));
         else if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
         else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
@@ -83,20 +118,12 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     }
   }
 
-  const version = versions.find((v) => v.number === shownNumber) ?? null;
-  const blocked = version?.findings.some((f) => f.severity === "block") ?? false;
-  const latestNumber = versions.length ? versions[versions.length - 1].number : null;
-
-  const [publishError, setPublishError] = useState<string | null>(null);
-  const [attachError, setAttachError] = useState<string | null>(null);
-  const [attaching, setAttaching] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-
   async function attach(file: File) {
     setAttachError(null);
     setAttaching(true);
     try {
-      const attachment: Attachment = await api.attach(journalist, embedId, file);
+      const { id } = await ensureEmbed();
+      const attachment = await api.attach(journalist, id, file);
       setEmbed((current) => current && { ...current, attachments: [...current.attachments, attachment] });
     } catch (e) {
       setAttachError((e as Error).message);
@@ -107,49 +134,74 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   }
 
   async function publish(shown: Version) {
+    if (!embed) return;
     const warnings = shown.findings.filter((f) => f.severity === "warn");
     if (warnings.length > 0 && !window.confirm(t("quality.confirm", { count: warnings.length }))) return;
     setPublishError(null);
     try {
-      const updated = await api.publish(journalist, embedId, shown.number, warnings.length > 0);
+      const updated = await api.publish(journalist, embed.id, shown.number, warnings.length > 0);
       setEmbed(updated);
       setVersions(updated.versions);
+      onChanged({ id: embed.id, published: true });
     } catch (e) {
       setPublishError((e as Error).message);
     }
   }
 
   async function changeEmbedLanguage(embed_language: Language) {
-    const changed = await api.setEmbedLanguage(journalist, embedId, embed_language);
+    if (!embed) {
+      setNewLanguage(embed_language);
+      return;
+    }
+    const changed = await api.setEmbedLanguage(journalist, embed.id, embed_language);
     setEmbed((current) => current && { ...current, embed_language: changed.embed_language });
   }
 
-  if (loadError) return <p className="error">{loadError}</p>;
-  if (!embed) return <p className="hint">{t("editor.loading")}</p>;
+  if (loadError) return <p className="error page-message">{loadError}</p>;
+  if (embedId !== null && !embed) return <p className="hint page-message">{t("editor.loading")}</p>;
+
+  const version = versions.find((v) => v.number === shownNumber) ?? null;
+  const blocked = version?.findings.some((f) => f.severity === "block") ?? false;
+  const latestNumber = versions.length ? versions[versions.length - 1].number : null;
+  const shownTitle = title ?? embed?.title ?? null;
 
   return (
     <div className={`editor show-${pane}`}>
-      <div className="pane-switch" role="tablist" aria-label={t("editor.panes")}>
-        {(["chat", "preview"] as const).map((p) => (
-          <button
-            key={p}
-            role="tab"
-            aria-selected={pane === p}
-            className={pane === p ? "on" : ""}
-            onClick={() => setPane(p)}
-          >
-            <Icon name={p === "chat" ? "chat" : "eye"} size={16} />
-            {t(`editor.pane.${p}`)}
-          </button>
-        ))}
+      <div className="mobile-bar">
+        <button
+          className="ghost icon-only"
+          title={t("sidebar.open")}
+          aria-label={t("sidebar.open")}
+          onClick={onOpenSidebar}
+        >
+          <Icon name="menu" />
+        </button>
+        <div className="pane-switch" role="tablist" aria-label={t("editor.panes")}>
+          {(["chat", "preview"] as const).map((p) => (
+            <button
+              key={p}
+              role="tab"
+              aria-selected={pane === p}
+              className={pane === p ? "on" : ""}
+              onClick={() => setPane(p)}
+            >
+              <Icon name={p === "chat" ? "chat" : "eye"} size={16} />
+              {t(`editor.pane.${p}`)}
+            </button>
+          ))}
+        </div>
       </div>
+
       <section className="chat card">
         <div className="chat-head">
-          <h2>{embed.title}</h2>
+          {embed ? (
+            <EditableTitle title={shownTitle} onRename={onRename} />
+          ) : (
+            <h2 className="untitled">{t("sidebar.new")}</h2>
+          )}
           <span className="embed-language" title={t("editor.embedLanguageHint")}>
-            {t("editor.embedLanguage")}
             <LanguageSelect
-              value={embed.embed_language}
+              value={embed?.embed_language ?? newLanguage}
               onChange={changeEmbedLanguage}
               label={t("editor.embedLanguage")}
               disabled={streaming}
@@ -157,6 +209,21 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
           </span>
         </div>
         <ol className="turns" ref={turnList}>
+          {turns.length === 0 && (
+            <li className="empty-chat">
+              <span className="logo" aria-hidden="true">
+                <Icon name="sparkle" size={24} />
+              </span>
+              <h3>{t("editor.emptyHeading")}</h3>
+              <div className="suggestions">
+                {(["quiz", "calculator", "chart", "map"] as const).map((kind) => (
+                  <button key={kind} type="button" onClick={() => setInput(t(`editor.suggestions.${kind}`))}>
+                    {t(`editor.suggestions.${kind}`)}
+                  </button>
+                ))}
+              </div>
+            </li>
+          )}
           {turns.map((turn, i) => (
             <li key={i} className={`turn ${turn.role}`}>
               {turn.guides.map((guide, g) => (
@@ -174,11 +241,11 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             </li>
           ))}
         </ol>
-        {embed.attachments.length > 0 && (
+        {embed && embed.attachments.length > 0 && (
           <ul className="attachments" aria-label={t("attachments.heading")}>
             {embed.attachments.map((a) => (
               <li key={a.id} title={a.columns?.map((c) => c.name).join(", ")}>
-                {a.kind === "dataset" ? "📊" : "🖼"} {a.name}
+                <Icon name={a.kind === "dataset" ? "table" : "image"} size={14} /> {a.name}
                 {a.rows !== null && <span className="hint"> · {t("attachments.rows", { count: a.rows })}</span>}
               </li>
             ))}
@@ -195,25 +262,32 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
           />
           <button
             type="button"
-            className="attach"
+            className="ghost icon-only attach"
             title={t("attachments.attach")}
             aria-label={t("attachments.attach")}
             disabled={attaching || streaming}
             onClick={() => fileInput.current?.click()}
           >
-            {attaching ? "…" : "📎"}
+            <Icon name="attach" />
           </button>
           <textarea
             value={input}
-            rows={3}
+            rows={2}
             placeholder={t("editor.placeholder")}
+            aria-label={t("editor.placeholder")}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) send(e);
             }}
           />
-          <button type="submit" className="primary" disabled={streaming || !input.trim()}>
-            {t("editor.send")}
+          <button
+            type="submit"
+            className="primary icon-only send"
+            title={t("editor.send")}
+            aria-label={t("editor.send")}
+            disabled={streaming || !input.trim()}
+          >
+            <Icon name="send" />
           </button>
         </form>
       </section>
@@ -267,7 +341,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
         </div>
         {version && !streaming && <Findings findings={version.findings} />}
         {publishError && <p className="error">{publishError}</p>}
-        {embed.delivery && (
+        {embed?.delivery && (
           <details className="publish-details">
             <summary>{t("publish.heading")}</summary>
             <PublishPanel embed={embed} shown={version} />
@@ -275,7 +349,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
         )}
         <Preview
           versionUrl={version?.preview_url ?? null}
-          progressFrameUrl={embed.progress_frame_url}
+          progressFrameUrl={embed?.progress_frame_url ?? ""}
           progressHtml={progressHtml}
           device={device}
         />

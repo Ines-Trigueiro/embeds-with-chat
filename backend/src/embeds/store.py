@@ -81,7 +81,7 @@ MIGRATIONS = {
 class Embed:
     id: str
     journalist: str
-    title: str
+    title: str | None  # None until one is suggested from the journalist's first message.
     created_at: str
     embed_language: Language
 
@@ -123,6 +123,10 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _embed(row: sqlite3.Row) -> Embed:
+    return Embed(**{**dict(row), "title": row["title"] or None})
+
+
 def new_embed_id() -> str:
     """Short, random and unguessable, so versions that are not published can't be found by guessing."""
     return secrets.token_urlsafe(9)
@@ -150,15 +154,20 @@ class Store:
         finally:
             db.close()
 
-    def create_embed(self, journalist: str, title: str, embed_language: Language) -> Embed:
+    def create_embed(self, journalist: str, title: str | None, embed_language: Language) -> Embed:
         embed = Embed(new_embed_id(), journalist, title, _now(), embed_language)
         with self._connect() as db:
             db.execute(
                 "INSERT INTO embeds (id, journalist, title, created_at, embed_language)"
                 " VALUES (?, ?, ?, ?, ?)",
-                (embed.id, embed.journalist, embed.title, embed.created_at, embed_language),
+                # The column predates optional titles, so "no title yet" is stored as ''.
+                (embed.id, embed.journalist, embed.title or "", embed.created_at, embed_language),
             )
         return embed
+
+    def set_title(self, embed_id: str, title: str) -> None:
+        with self._connect() as db:
+            db.execute("UPDATE embeds SET title = ? WHERE id = ?", (title, embed_id))
 
     def set_embed_language(self, embed_id: str, embed_language: Language) -> None:
         with self._connect() as db:
@@ -170,7 +179,7 @@ class Store:
                 "SELECT * FROM embeds WHERE journalist = ? ORDER BY created_at DESC",
                 (journalist,),
             ).fetchall()
-        return [Embed(**row) for row in rows]
+        return [_embed(row) for row in rows]
 
     def embed_of(self, journalist: str, embed_id: str) -> Embed | None:
         """The embed, but only if this journalist owns it."""
@@ -178,7 +187,7 @@ class Store:
             row = db.execute(
                 "SELECT * FROM embeds WHERE id = ? AND journalist = ?", (embed_id, journalist)
             ).fetchone()
-        return Embed(**row) if row else None
+        return _embed(row) if row else None
 
     def add_message(
         self,
@@ -249,6 +258,16 @@ class Store:
             db.execute(
                 "INSERT OR IGNORE INTO publications VALUES (?, ?, ?)", (embed_id, number, _now())
             )
+
+    def published_embed_ids(self, journalist: str) -> set[str]:
+        """Which of this journalist's embeds have at least one published version."""
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT DISTINCT p.embed_id FROM publications p"
+                " JOIN embeds e ON e.id = p.embed_id WHERE e.journalist = ?",
+                (journalist,),
+            ).fetchall()
+        return {row["embed_id"] for row in rows}
 
     def published_numbers(self, embed_id: str) -> set[int]:
         with self._connect() as db:
