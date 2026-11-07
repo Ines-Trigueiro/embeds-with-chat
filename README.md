@@ -46,13 +46,13 @@ Data (SQLite, attachments) lives in a Docker volume, so it survives restarts. `d
 7. **Check the quality chip** above the preview, and click it for the details.
    - Blockers, such as a script from an unknown site, stop publishing.
    - Warnings, such as a missing alt text or source line, have to be ticked off in the publish dialog.
-8. **Publish.** The dialog then shows one big **Copy embed code** button, plus three plain steps for pasting it into an HTML block in the article. "Get embed code" reopens it later. The code is:
+8. **Publish.** The dialog then shows one big **Copy embed code** button, which copies the snippet, plus three plain steps for pasting it into an HTML block in the article. "Get embed code" reopens it later. The snippet is:
    ```html
    <script src="http://localhost:8001/loader.js" data-embed="…" async></script>
    ```
    - It follows the newest published version, so an article updates by itself when you publish again.
    - Under *Advanced*:
-     - code pinned to one version (`data-version="3"`);
+     - a snippet pinned to one version (`data-version="3"`);
      - plain URLs (`/e/<id>` and `/e/<id>/v/<n>`), for systems that only take a URL.
 9. **Open the test article** ("See how it looks in an article" in the dialog, or `http://localhost:8000/test-article?embed=<id>`).
    - It shows the embed inside a stand-in news article, sized to its content.

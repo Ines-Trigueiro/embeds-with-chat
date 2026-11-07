@@ -32,7 +32,7 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
     if (!element || element.open) return;
     element.showModal();
     // Start on the main action, not on the close button the browser would pick.
-    element.querySelector<HTMLElement>(".copy-code, .dialog-actions .primary:enabled")?.focus();
+    element.querySelector<HTMLElement>(".copy-snippet, .dialog-actions .primary:enabled")?.focus();
   }, []);
 
   const blockers = version.findings.filter((f) => f.severity === "block");
@@ -45,7 +45,7 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
     try {
       onPublished(await api.publish(journalist, embed.id, version.number, warnings.length > 0));
       setJustPublished(true);
-      requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>(".copy-code")?.focus());
+      requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>(".copy-snippet")?.focus());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -131,7 +131,7 @@ function ArticleSteps({ embed, version, justPublished }: { embed: OpenedEmbed; v
           <Icon name="check" /> {t("publish.justPublished", { number: version.number })}
         </p>
       )}
-      <CopyButton value={delivery.snippet} />
+      <CopySnippetButton value={delivery.snippet} />
       <ol className="steps">
         {steps.map(([icon, text], i) => (
           <li key={i}>
@@ -184,13 +184,13 @@ function useCopy(value: string): [boolean, () => void] {
   return [copied, copy];
 }
 
-function CopyButton({ value }: { value: string }) {
+function CopySnippetButton({ value }: { value: string }) {
   const { t } = useTranslation();
   const [copied, copy] = useCopy(value);
   return (
-    <button className={`primary big copy-code${copied ? " copied" : ""}`} onClick={copy}>
+    <button className={`primary big copy-snippet${copied ? " copied" : ""}`} onClick={copy}>
       <Icon name={copied ? "check" : "copy"} />
-      {copied ? t("publish.copied") : t("publish.copyCode")}
+      {copied ? t("publish.copied") : t("publish.copySnippet")}
     </button>
   );
 }

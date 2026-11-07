@@ -6,13 +6,13 @@ import { Icon } from "./Icon";
 /** Editing a Title: Enter or leaving the field saves, Escape cancels. */
 export function TitleInput({ initial, onDone }: { initial: string | null; onDone: (title: string | null) => void }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(initial ?? "");
+  const [edited, setEdited] = useState(initial ?? "");
   const finished = useRef(false); // Enter, then the blur as the field goes away: save once.
 
   function finish(save: boolean) {
     if (finished.current) return;
     finished.current = true;
-    const trimmed = draft.trim();
+    const trimmed = edited.trim();
     onDone(save && trimmed && trimmed !== initial ? trimmed : null);
   }
 
@@ -20,10 +20,10 @@ export function TitleInput({ initial, onDone }: { initial: string | null; onDone
     <input
       className="title-input"
       autoFocus
-      value={draft}
+      value={edited}
       maxLength={200}
       aria-label={t("sidebar.rename")}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => setEdited(e.target.value)}
       onFocus={(e) => e.target.select()}
       onBlur={() => finish(true)}
       onKeyDown={(e) => {

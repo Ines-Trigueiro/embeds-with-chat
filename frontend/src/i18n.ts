@@ -44,6 +44,7 @@ const en = {
     thinking: "Thinking…",
     translatedTo: "Translated to {{language}}",
     translatingTo: "Translating to {{language}}…",
+    notTranslatedTo: "Not translated to {{language}}",
     translate: {
       title: "Translate to {{language}}?",
       body: "The model rewrites the text readers see in version {{number}} into {{language}}, as a new version {{next}}. The data stays exactly as it is.",
@@ -70,7 +71,7 @@ const en = {
   publish: {
     publish: "Publish version {{number}}",
     published: "Published",
-    getCode: "Get embed code",
+    getSnippet: "Get embed code",
     dialogTitle: "Publish version {{number}}",
     codeTitle: "Put it in your article",
     blocked: "This version can't be published yet. Ask the model in the chat to fix this:",
@@ -81,7 +82,7 @@ const en = {
     confirm: "Publish",
     publishing: "Publishing…",
     justPublished: "Version {{number}} is published.",
-    copyCode: "Copy embed code",
+    copySnippet: "Copy embed code",
     copied: "Copied!",
     copy: "Copy",
     step1: "Copy the embed code with the button above.",
@@ -169,6 +170,7 @@ const nb: Translations = {
     thinking: "Tenker …",
     translatedTo: "Oversatt til {{language}}",
     translatingTo: "Oversetter til {{language}} …",
+    notTranslatedTo: "Ikke oversatt til {{language}}",
     translate: {
       title: "Oversette til {{language}}?",
       body: "Modellen skriver om teksten leserne ser i versjon {{number}} til {{language}}, som en ny versjon {{next}}. Dataene forblir nøyaktig som de er.",
@@ -195,7 +197,7 @@ const nb: Translations = {
   publish: {
     publish: "Publiser versjon {{number}}",
     published: "Publisert",
-    getCode: "Hent embedkode",
+    getSnippet: "Hent embedkode",
     dialogTitle: "Publiser versjon {{number}}",
     codeTitle: "Sett den inn i artikkelen",
     blocked: "Denne versjonen kan ikke publiseres ennå. Be modellen i chatten rette dette:",
@@ -206,7 +208,7 @@ const nb: Translations = {
     confirm: "Publiser",
     publishing: "Publiserer …",
     justPublished: "Versjon {{number}} er publisert.",
-    copyCode: "Kopier embedkoden",
+    copySnippet: "Kopier embedkoden",
     copied: "Kopiert!",
     copy: "Kopier",
     step1: "Kopier embedkoden med knappen over.",
@@ -292,6 +294,7 @@ const da: Translations = {
     thinking: "Tænker …",
     translatedTo: "Oversat til {{language}}",
     translatingTo: "Oversætter til {{language}} …",
+    notTranslatedTo: "Ikke oversat til {{language}}",
     translate: {
       title: "Oversætte til {{language}}?",
       body: "Modellen omskriver den tekst, læserne ser i version {{number}}, til {{language}} som en ny version {{next}}. Dataene forbliver præcis, som de er.",
@@ -318,7 +321,7 @@ const da: Translations = {
   publish: {
     publish: "Udgiv version {{number}}",
     published: "Udgivet",
-    getCode: "Hent embedkode",
+    getSnippet: "Hent embedkode",
     dialogTitle: "Udgiv version {{number}}",
     codeTitle: "Sæt det ind i artiklen",
     blocked: "Denne version kan ikke udgives endnu. Bed modellen i chatten rette dette:",
@@ -329,7 +332,7 @@ const da: Translations = {
     confirm: "Udgiv",
     publishing: "Udgiver …",
     justPublished: "Version {{number}} er udgivet.",
-    copyCode: "Kopiér embedkoden",
+    copySnippet: "Kopiér embedkoden",
     copied: "Kopieret!",
     copy: "Kopiér",
     step1: "Kopiér embedkoden med knappen ovenfor.",

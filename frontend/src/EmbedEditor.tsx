@@ -246,9 +246,9 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
                 <li key={i} className="turn marker">
                   <Flag language={language} />
                   <span className={pending ? "pulsing-text" : undefined}>
-                    {pending
-                      ? t("editor.translatingTo", { language: t(`languages.${language}`) })
-                      : t("editor.translatedTo", { language: t(`languages.${language}`) })}
+                    {t(pending ? "editor.translatingTo" : done !== null ? "editor.translatedTo" : "editor.notTranslatedTo", {
+                      language: t(`languages.${language}`),
+                    })}
                   </span>
                   {done !== null && (
                     <button className="badge" onClick={() => setShownNumber(done)}>
@@ -372,12 +372,12 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
                 <button
                   className={version.published ? "primary" : "icon-only"}
                   disabled={streaming}
-                  title={t("publish.getCode")}
-                  aria-label={t("publish.getCode")}
+                  title={t("publish.getSnippet")}
+                  aria-label={t("publish.getSnippet")}
                   onClick={() => setPublishing(true)}
                 >
                   <Icon name="code" size={16} />
-                  {version.published && <span className="wide-only">{t("publish.getCode")}</span>}
+                  {version.published && <span className="wide-only">{t("publish.getSnippet")}</span>}
                 </button>
               )}
             </span>

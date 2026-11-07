@@ -29,6 +29,7 @@ from embeds.titles import suggest_title
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_GUIDE_ROUNDS = 3
 MODEL_UNAVAILABLE = "Sorry, I couldn't answer just now. Please try again."
+NO_TRANSLATION = "The model replied without a translated version. Please try again."
 
 ChatEvent = tuple[str, dict[str, Any] | Version]
 
@@ -67,9 +68,7 @@ async def chat_turn(
     ][-MAX_IMAGES_FOR_MODEL:]
     system = base_guide(embed_origin, chat_language, embed.embed_language)
     messages = turn_context(system, conversation, latest, content, datasets, images)
-    if translation:
-        store.add_message(embed_id, "journalist", embed.embed_language, kind="translation")
-    else:
+    if not translation:
         store.add_message(embed_id, "journalist", content)
 
     stream = ReplyStream()
@@ -90,18 +89,25 @@ async def chat_turn(
     except Exception as exc:  # The provider failed: bad key, rate limit, network, ...
         failure = (f"The model could not answer: {exc}", MODEL_UNAVAILABLE)
     else:
-        version = store.add_version(embed_id, html) if html else None
-        if translation and version:
-            store.set_embed_language(embed_id, embed.embed_language)
-        number = version.number if version else None
-        store.add_message(embed_id, "model", reply.text, number, tuple(guides))
-        if version:
-            yield "version", version
-        yield "done", {"text": reply.text}
-        return
+        if translation and not html:
+            failure = (NO_TRANSLATION, reply.text or NO_TRANSLATION)
+        else:
+            version = store.add_version(embed_id, html) if html else None
+            if translation:
+                # Only a translation that produced a version is kept: the marker, the
+                # new embed language and the reply. A failed one leaves no trace (ADR 0004).
+                store.add_message(embed_id, "journalist", embed.embed_language, kind="translation")
+                store.set_embed_language(embed_id, embed.embed_language)
+            number = version.number if version else None
+            store.add_message(embed_id, "model", reply.text, number, tuple(guides))
+            if version:
+                yield "version", version
+            yield "done", {"text": reply.text}
+            return
 
     error, text = failure
-    store.add_message(embed_id, "model", text, guides=tuple(guides))
+    if not translation:
+        store.add_message(embed_id, "model", text, guides=tuple(guides))
     yield "error", {"message": error}
     yield "done", {"text": text}
 

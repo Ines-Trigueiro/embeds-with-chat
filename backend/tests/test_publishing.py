@@ -148,7 +148,7 @@ def test_the_test_article_page_rejects_anything_but_an_embed_id(editor: TestClie
     assert editor.get("/test-article", params={"embed": "abc", "version": "1x"}).status_code == 422
 
 
-def test_my_embeds_shows_which_embeds_are_published(editor: TestClient, fake_model: FakeChatModel) -> None:
+def test_the_embed_list_shows_which_embeds_are_published(editor: TestClient, fake_model: FakeChatModel) -> None:
     published = embed_with_versions(editor, fake_model, "<p>a</p>")
     embed_with_versions(editor, fake_model, "<p>b</p>")
     publish(editor, published, 1)

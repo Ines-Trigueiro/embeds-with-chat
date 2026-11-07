@@ -246,12 +246,7 @@ button.badge:hover:not(:disabled) { background: var(--accent-strong); }
 }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .turn.marker { align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px;
-  border-radius: 99px; background: var(--surface); border: 1px dashed var(--border); color: var(--muted); font-size: 0.85rem; }
-.turn.marker .badge { margin-left: 0; }
-.dialog.small { width: min(440px, calc(100vw - 24px)); }
-.callout .flag { margin-top: 3px; }
-.status.pulsing, .pulsing-text { animation: none; background: none; color: var(--muted); }
+  .status.pulsing, .pulsing-text { animation: none; background: none; color: var(--muted); }
 }
 .turn.model { white-space: normal; }
 .markdown > :first-child { margin-top: 0; }
@@ -340,8 +335,8 @@ button.chip.block:hover:not(:disabled) { background: var(--danger-soft); }
 .callout.info .icon { color: var(--accent); }
 .checkbox { display: flex; gap: 9px; align-items: center; font-size: 0.93rem; cursor: pointer; }
 .checkbox input { width: 18px; height: 18px; accent-color: var(--accent); }
-.copy-code { width: 100%; padding: 15px; font-size: 1.05rem; }
-.copy-code.copied { background: var(--ok); border-color: var(--ok); }
+.copy-snippet { width: 100%; padding: 15px; font-size: 1.05rem; }
+.copy-snippet.copied { background: var(--ok); border-color: var(--ok); }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .steps li { display: flex; gap: 11px; align-items: flex-start; }
 .step-icon { width: 30px; height: 30px; flex: none; border-radius: 9px; display: grid; place-items: center;

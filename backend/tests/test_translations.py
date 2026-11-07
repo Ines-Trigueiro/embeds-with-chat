@@ -46,6 +46,23 @@ def test_a_failed_translation_keeps_the_language_and_creates_no_version(
     embed = opened(editor, embed_id)
     assert embed["embed_language"] == "nb"
     assert len(embed["versions"]) == 1
+    assert len(embed["messages"]) == 2  # nothing that says it was translated
+
+
+def test_a_translation_reply_without_a_version_counts_as_failed(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    embed_id = embed_with_a_version(editor, fake_model)
+    fake_model.replies += ["Which parts should I translate?", "Done."]
+
+    events = translate(editor, embed_id, "da")
+    chat(editor, embed_id, "Gjør teksten større")
+
+    assert only(events, "error") and not only(events, "version")
+    embed = opened(editor, embed_id)
+    assert embed["embed_language"] == "nb"
+    assert [m["kind"] for m in embed["messages"]] == ["message"] * 4
+    assert not any("Translate the current version" in m.text for m in fake_model.received[-1])
 
 
 def test_there_must_be_a_version_and_a_new_language_to_translate(
