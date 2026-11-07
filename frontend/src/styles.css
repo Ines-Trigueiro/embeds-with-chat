@@ -233,6 +233,26 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
   background: var(--accent); color: var(--accent-ink); border: 0; font-size: 0.78rem; font-weight: 600; }
 button.badge:hover:not(:disabled) { background: var(--accent-strong); }
 .status { margin: 0 0 6px; color: var(--muted); font-size: 0.85rem; }
+/* Waiting for the model: the text shimmers, like Claude's "thinking". */
+.status.pulsing {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--accent) 50%, var(--muted) 65%, var(--muted) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .status.pulsing { animation: none; background: none; color: var(--muted); }
+}
+.turn.model { white-space: normal; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p, .markdown ul, .markdown ol { margin: 0 0 8px; }
+.markdown ul, .markdown ol { padding-left: 20px; }
+.markdown li + li { margin-top: 2px; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { font-family: var(--sans); font-size: 1rem; margin: 10px 0 4px; }
+.markdown code { font-family: var(--mono); font-size: 0.85em; background: var(--surface); padding: 1px 5px; border-radius: 5px; }
+.markdown pre { overflow-x: auto; background: var(--surface); padding: 8px 10px; border-radius: 8px; }
+.markdown blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--border); color: var(--muted); }
 .composer { flex: none; display: flex; gap: 4px; margin-top: 12px; align-items: flex-end; padding: 6px;
   border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

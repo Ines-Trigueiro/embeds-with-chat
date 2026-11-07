@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ChatMarkdown } from "./ChatMarkdown";
 import { api, type Embed, type Message, type OpenedEmbed, type Version } from "./api";
 import { EditableTitle } from "./EditableTitle";
 import { Findings } from "./Findings";
@@ -224,14 +225,18 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
               </div>
             </li>
           )}
-          {turns.map((turn, i) => (
+          {turns.map((turn, i) => {
+            const live = streaming && i === turns.length - 1; // The reply arriving right now.
+            return (
             <li key={i} className={`turn ${turn.role}`}>
               {turn.guides.map((guide, g) => (
-                <p key={g} className="status">
+                <p key={g} className={live && !turn.text && g === turn.guides.length - 1 ? "status pulsing" : "status"}>
                   {t("editor.readingGuide", { name: t(`guides.${guide}`, { defaultValue: guide }) })}
                 </p>
               ))}
-              {turn.text || (streaming && i === turns.length - 1 ? "…" : "")}
+              {turn.role === "model" ? <ChatMarkdown text={turn.text} /> : turn.text}
+              {live && !turn.text && turn.guides.length === 0 && <p className="status pulsing">{t("editor.thinking")}</p>}
+              {live && turn.text && progressHtml !== null && <p className="status pulsing">{t("editor.writing")}</p>}
               {turn.version_number !== null && (
                 <button className="badge" onClick={() => setShownNumber(turn.version_number)}>
                   {t("editor.version", { number: turn.version_number })}
@@ -239,7 +244,8 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
               )}
               {turn.error && <p className="error">{turn.error}</p>}
             </li>
-          ))}
+            );
+          })}
         </ol>
         {embed && embed.attachments.length > 0 && (
           <ul className="attachments" aria-label={t("attachments.heading")}>

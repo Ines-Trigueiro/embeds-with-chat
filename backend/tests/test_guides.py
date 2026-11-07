@@ -82,3 +82,14 @@ def test_the_guides_read_are_kept_with_the_reply(
     opened = editor.get(f"/api/embeds/{embed_id}", headers={"X-Journalist": "kari"}).json()
 
     assert [m["guides"] for m in opened["messages"]] == [[], ["chart"]]
+
+
+def test_the_model_is_asked_for_light_markdown_in_its_chat_replies(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    fake_model.replies.append("Hva vil du lage?")
+    chat(editor, new_embed(editor), "Hei")
+
+    system = fake_model.received[0][0].text
+    assert "light Markdown" in system
+    assert "no headings, tables or images" in system

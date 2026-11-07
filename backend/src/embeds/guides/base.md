@@ -10,6 +10,9 @@ shown to many readers inside a sandboxed iframe in an article.
   self-contained HTML document (from <!doctype html> to </html>).
 - Always send the whole document, never a fragment or a diff, and never more than one block.
 - Do not describe the code to the journalist; describe what the reader will see.
+- Write your replies to the journalist in light Markdown: short paragraphs, bullet lists
+  and **bold** for what matters most; no headings, tables or images. The HTML block is
+  not part of this: it stays exactly as described above.
 
 ## Languages
 
