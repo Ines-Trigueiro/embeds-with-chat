@@ -11,12 +11,12 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   const [embed, setEmbed] = useState<OpenedEmbed | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [version, setVersion] = useState<Version | null>(null);
-  const [draftHtml, setDraftHtml] = useState<string | null>(null);
+  const [progressHtml, setProgressHtml] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState("");
   const [device, setDevice] = useState<Device>("mobile");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const log = useRef<HTMLOListElement>(null);
+  const turnList = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
     api.openEmbed(journalist, embedId).then(
@@ -30,7 +30,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   }, [journalist, embedId]);
 
   useEffect(() => {
-    log.current?.lastElementChild?.scrollIntoView({ block: "end" });
+    turnList.current?.lastElementChild?.scrollIntoView({ block: "end" });
   }, [turns]);
 
   function updateModelTurn(update: (turn: Turn) => Turn) {
@@ -52,7 +52,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     try {
       for await (const { event, data } of api.sendMessage(journalist, embedId, content)) {
         if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
-        else if (event === "draft") setDraftHtml(data.html);
+        else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
           setVersion(data);
           updateModelTurn((t) => ({ ...t, version_number: data.number }));
@@ -62,7 +62,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     } catch (e) {
       updateModelTurn((t) => ({ ...t, error: (e as Error).message }));
     } finally {
-      setDraftHtml(null);
+      setProgressHtml(null);
       setStreaming(false);
     }
   }
@@ -74,7 +74,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     <div className="editor">
       <section className="chat card">
         <h2>{embed.title}</h2>
-        <ol className="turns" ref={log}>
+        <ol className="turns" ref={turnList}>
           {turns.map((turn, i) => (
             <li key={i} className={`turn ${turn.role}`}>
               {turn.text || (streaming && i === turns.length - 1 ? "…" : "")}
@@ -119,8 +119,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
         </div>
         <Preview
           versionUrl={version?.preview_url ?? null}
-          draftFrameUrl={embed.draft_frame_url}
-          draftHtml={streaming ? draftHtml ?? "" : null}
+          progressFrameUrl={embed.progress_frame_url}
+          progressHtml={progressHtml}
           device={device}
         />
       </section>

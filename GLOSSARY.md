@@ -26,6 +26,10 @@ _Avoid_: Revision, draft, snapshot
 The language readers see an embed's text in, chosen per embed. Independent of the language the journalist chats in.
 _Avoid_: Locale, content language
 
+**Work in progress**:
+The HTML the model has written so far, while its reply is still streaming. Shown in the preview, but never stored and never a version.
+_Avoid_: Draft, partial, preview
+
 **Conversation**:
 The ordered messages between the journalist and the model for one embed.
 _Avoid_: Thread, session, history

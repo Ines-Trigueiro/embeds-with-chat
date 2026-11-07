@@ -11,6 +11,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
+
+Role = Literal["journalist", "model"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS embeds (
@@ -62,7 +65,7 @@ class Version:
 class Message:
     embed_id: str
     seq: int
-    role: str  # "journalist" or "model"
+    role: Role
     text: str
     version_number: int | None
     created_at: str
@@ -126,7 +129,7 @@ class Store:
         return Embed(**row) if row else None
 
     def add_message(
-        self, embed_id: str, role: str, text: str, version_number: int | None = None
+        self, embed_id: str, role: Role, text: str, version_number: int | None = None
     ) -> Message:
         with self._connect() as db:
             (seq,) = db.execute(

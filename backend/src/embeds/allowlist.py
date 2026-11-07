@@ -60,5 +60,7 @@ def content_security_policy(embed_origin: str) -> str:
         "connect-src": "'none'",
         "form-action": "'none'",
         "base-uri": "'none'",
+        # Forces an opaque origin even when a URL is opened directly, outside <iframe sandbox>.
+        "sandbox": "allow-scripts",
     }
     return "; ".join(f"{name} {value}" for name, value in directives.items())

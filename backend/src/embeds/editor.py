@@ -1,5 +1,7 @@
 """The editor origin: the journalist-facing API and the built frontend."""
 
+import json
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Self
 from urllib.parse import unquote
@@ -12,8 +14,8 @@ from pydantic import BaseModel, Field
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
-from embeds.previews import PreviewSigner, load_or_create_secret
-from embeds.store import Embed, Message, Store, Version
+from embeds.previews import Previews
+from embeds.store import Embed, Message, Role, Store, Version
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -60,7 +62,7 @@ class VersionOut(BaseModel):
 
 
 class MessageOut(BaseModel):
-    role: str
+    role: Role
     text: str
     version_number: int | None
 
@@ -72,20 +74,19 @@ class MessageOut(BaseModel):
 class OpenedEmbed(EmbedOut):
     messages: list[MessageOut]
     latest_version: VersionOut | None
-    draft_frame_url: str
+    progress_frame_url: str
 
 
 def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     store = Store(settings.database_path)
-    signer = PreviewSigner(load_or_create_secret(settings.data_dir))
+    previews = Previews.from_settings(settings)
     app = FastAPI(title="Embeds with chat – editor")
 
-    def describe(version: Version) -> VersionOut:
-        sig = signer.sign(version.embed_id, version.number)
+    def version_out(version: Version) -> VersionOut:
         return VersionOut(
             number=version.number,
             created_at=version.created_at,
-            preview_url=f"{settings.embed_origin}/preview/{version.embed_id}/{version.number}?sig={sig}",
+            preview_url=previews.url(version.embed_id, version.number),
         )
 
     def owned_embed(embed_id: str, journalist: str) -> Embed:
@@ -109,18 +110,22 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         return OpenedEmbed(
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed_id)],
-            latest_version=describe(latest) if latest else None,
-            draft_frame_url=f"{settings.embed_origin}/draft-frame",
+            latest_version=version_out(latest) if latest else None,
+            progress_frame_url=f"{settings.embed_origin}/progress-frame",
         )
 
     @app.post("/api/embeds/{embed_id}/messages")
     def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
         owned_embed(embed_id, journalist)
-        events = chat_turn(
-            store, chat_model, embed_id, body.content, lambda v: describe(v).model_dump()
-        )
+
+        async def server_sent_events() -> AsyncIterator[str]:
+            turn = chat_turn(store, chat_model, embed_id, body.content, settings.embed_origin)
+            async for event, data in turn:
+                payload = version_out(data).model_dump() if isinstance(data, Version) else data
+                yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
         return StreamingResponse(
-            events,
+            server_sent_events(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )

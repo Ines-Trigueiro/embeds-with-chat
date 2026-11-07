@@ -48,13 +48,13 @@ export interface Message {
 export interface OpenedEmbed extends Embed {
   messages: Message[];
   latest_version: Version | null;
-  draft_frame_url: string;
+  progress_frame_url: string;
 }
 
 /** Server-sent events from one chat turn; see the backend's chat module. */
 export type ChatEvent =
   | { event: "text"; data: { delta: string } }
-  | { event: "draft"; data: { html: string } }
+  | { event: "progress"; data: { html: string } }
   | { event: "version"; data: Version }
   | { event: "error"; data: { message: string } }
   | { event: "done"; data: { text: string } };
@@ -64,7 +64,7 @@ function headers(journalist: string): HeadersInit {
   return { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist) };
 }
 
-async function request<T>(journalist: string, path: string, init: RequestInit = {}): Promise<T> {
+async function call(journalist: string, path: string, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(path, {
     ...init,
     headers: { ...headers(journalist), ...init.headers },
@@ -72,7 +72,11 @@ async function request<T>(journalist: string, path: string, init: RequestInit = 
   if (!response.ok) {
     throw new Error(`${init.method ?? "GET"} ${path} failed: ${response.status}`);
   }
-  return (await response.json()) as T;
+  return response;
+}
+
+async function request<T>(journalist: string, path: string, init: RequestInit = {}): Promise<T> {
+  return (await (await call(journalist, path, init)).json()) as T;
 }
 
 /** Send a chat message and yield the reply's events as they stream in. */
@@ -81,14 +85,11 @@ async function* sendMessage(
   embedId: string,
   content: string,
 ): AsyncGenerator<ChatEvent> {
-  const response = await fetch(`/api/embeds/${embedId}/messages`, {
+  const response = await call(journalist, `/api/embeds/${embedId}/messages`, {
     method: "POST",
-    headers: headers(journalist),
     body: JSON.stringify({ content }),
   });
-  if (!response.ok || !response.body) {
-    throw new Error(`Sending the message failed: ${response.status}`);
-  }
+  if (!response.body) throw new Error("The reply could not be read.");
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";

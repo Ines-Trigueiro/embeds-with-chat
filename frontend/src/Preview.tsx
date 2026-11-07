@@ -6,9 +6,9 @@ const WIDTHS: Record<Device, string> = { mobile: "375px", desktop: "100%" };
 
 interface Props {
   versionUrl: string | null;
-  draftFrameUrl: string;
-  /** Half-written HTML while the model writes; null when not streaming. */
-  draftHtml: string | null;
+  progressFrameUrl: string;
+  /** Work in progress while the model writes its HTML; null otherwise. */
+  progressHtml: string | null;
   device: Device;
 }
 
@@ -16,14 +16,14 @@ interface Props {
  * Both frames use the sandbox readers get (ADR 0001): scripts, but no same-origin access,
  * no top navigation and no popups. Content always comes from the embed origin.
  */
-export function Preview({ versionUrl, draftFrameUrl, draftHtml, device }: Props) {
-  const writing = draftHtml !== null;
+export function Preview({ versionUrl, progressFrameUrl, progressHtml, device }: Props) {
+  const writing = progressHtml !== null;
 
   return (
     <div className="preview-stage">
       <div className="preview-device" style={{ width: WIDTHS[device] }}>
         {writing ? (
-          <DraftFrame url={draftFrameUrl} html={draftHtml} />
+          <ProgressFrame url={progressFrameUrl} html={progressHtml} />
         ) : versionUrl ? (
           <iframe
             key={versionUrl}
@@ -41,13 +41,13 @@ export function Preview({ versionUrl, draftFrameUrl, draftHtml, device }: Props)
   );
 }
 
-function DraftFrame({ url, html }: { url: string; html: string }) {
+function ProgressFrame({ url, html }: { url: string; html: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      if (event.source === frame.current?.contentWindow && event.data?.type === "draft-frame-ready") {
+      if (event.source === frame.current?.contentWindow && event.data?.type === "progress-frame-ready") {
         setReady(true);
       }
     }
@@ -56,11 +56,11 @@ function DraftFrame({ url, html }: { url: string; html: string }) {
   }, []);
 
   useEffect(() => {
-    // The draft frame is sandboxed, so its origin is opaque: "*" is the only target that reaches it.
-    if (ready) frame.current?.contentWindow?.postMessage({ type: "draft", html }, "*");
+    // The progress frame is sandboxed, so its origin is opaque: "*" is the only target that reaches it.
+    if (ready) frame.current?.contentWindow?.postMessage({ type: "progress", html }, "*");
   }, [ready, html]);
 
   return (
-    <iframe ref={frame} className="preview-frame" sandbox="allow-scripts" src={url} title="Draft preview" />
+    <iframe ref={frame} className="preview-frame" sandbox="allow-scripts" src={url} title="Work in progress" />
   );
 }

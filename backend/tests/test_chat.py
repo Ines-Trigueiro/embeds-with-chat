@@ -105,7 +105,7 @@ def test_model_failure_is_reported_as_an_error(
     assert "x-api-key" not in only(events, "done")[0]["text"]  # the chat stays readable
 
 
-def test_partial_html_is_streamed_as_drafts_while_the_model_writes(
+def test_work_in_progress_is_streamed_while_the_model_writes(
     editor: TestClient, fake_model: FakeChatModel
 ) -> None:
     html = doc("<p>utkast</p>")
@@ -114,9 +114,9 @@ def test_partial_html_is_streamed_as_drafts_while_the_model_writes(
 
     events = chat(editor, embed_id, "Lag noe")
 
-    drafts = only(events, "draft")
-    assert drafts, "expected at least one draft event"
-    assert all(html.startswith(d["html"]) for d in drafts)
+    progress = only(events, "progress")
+    assert progress, "expected at least one progress event"
+    assert all(html.startswith(d["html"]) for d in progress)
 
 
 def test_versions_are_numbered_per_embed(editor: TestClient, fake_model: FakeChatModel) -> None:
@@ -157,5 +157,5 @@ def test_opening_an_embed_returns_its_messages_and_latest_version(
         ("model", "Laget.", 1),
     ]
     assert opened["latest_version"]["number"] == 1
-    assert opened["draft_frame_url"] == "http://embeds.test/draft-frame"
+    assert opened["progress_frame_url"] == "http://embeds.test/progress-frame"
     assert editor.get(f"/api/embeds/{embed_id}", headers={"X-Journalist": "ola"}).status_code == 404

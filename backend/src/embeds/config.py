@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     app_origin: str = "http://localhost:8000"
     embed_origin: str = "http://localhost:8001"
 
+    # How long a signed preview URL for a Version stays valid. The editor fetches a
+    # fresh one whenever an embed is opened.
+    preview_ttl_seconds: int = 24 * 60 * 60
+
     # Any "provider:model" string LangChain's init_chat_model understands.
     llm_model: str = "anthropic:claude-sonnet-5-5"
 

@@ -3,7 +3,8 @@
 from embeds.allowlist import LIBRARIES, MAP_ATTRIBUTION, MAP_TILES
 
 
-def system_prompt() -> str:
+def system_prompt(embed_origin: str) -> str:
+    """Every source the CSP allows is named here; a test keeps the two in step."""
     libraries = "\n".join(
         f"- {lib.name}, for {lib.purpose}: " + ", ".join(lib.urls()) for lib in LIBRARIES
     )
@@ -30,9 +31,12 @@ blocked by the browser and will silently break the embed.
 - These libraries, loaded from exactly these URLs:
 {libraries}
 - Map tiles from {MAP_TILES}, with the attribution {MAP_ATTRIBUTION}
-- Images as data: URLs.
+- Images only from: data: URLs; images the journalist uploaded, at URLs starting with
+  {embed_origin}/; the map tiles above; and the images inside the library directories above
+  (such as Leaflet's markers).
 - No other network access: no fetch, XMLHttpRequest, WebSocket, web fonts, external
-  images, forms that submit, or links that navigate the page. Put all data in the document.
+  images, forms that submit, or links that navigate the page. Nothing can be loaded
+  at run time, so everything the embed needs must be inside the document.
 - The embed cannot read cookies or storage, open popups, or touch the page around it.
   Do not try.
 
