@@ -63,3 +63,8 @@ Where it pushed back on me:
 - **Where I accepted a limit rather than over-build:**
   - The quality check can be fooled by obfuscated code. The CSP and sandbox are what protect readers.
   - Nothing yet detects a model that retypes figures from the sample rows.
+
+## 5. Ticket #10: README and decision note
+
+- The assistant proposed which five choices the decision note should lead with, and I approved them. Its reasons: each had a real trade-off and was either already in an ADR or proven by a test.
+- The README commands were checked rather than written from memory. That check found a missing variable in `.env.example` (`PREVIEW_TTL_SECONDS`), and confirmed the local-dev command actually runs.
