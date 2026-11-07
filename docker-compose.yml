@@ -1,0 +1,18 @@
+# One image, two origins (ADR 0001): the editor on :8000 and the embed origin on :8001.
+services:
+  editor:
+    build: .
+    command: uvicorn embeds.main:editor_app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    env_file: .env
+    volumes: [data:/data]
+
+  embeds:
+    build: .
+    command: uvicorn embeds.main:embed_app --host 0.0.0.0 --port 8001
+    ports: ["8001:8001"]
+    env_file: .env
+    volumes: [data:/data]
+
+volumes:
+  data:
