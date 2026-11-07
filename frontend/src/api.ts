@@ -67,8 +67,19 @@ export interface Message {
   guides: string[];
 }
 
+export interface Attachment {
+  id: string;
+  kind: "dataset" | "image";
+  name: string;
+  created_at: string;
+  /** Datasets only. */
+  rows: number | null;
+  columns: { name: string; type: string }[] | null;
+}
+
 export interface OpenedEmbed extends Embed {
   messages: Message[];
+  attachments: Attachment[];
   versions: Version[];
   latest_version: Version | null;
   progress_frame_url: string;
@@ -90,13 +101,31 @@ function headers(journalist: string): HeadersInit {
   return { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist) };
 }
 
+/** An error the API explains (FastAPI's `detail`), so the journalist sees why. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: unknown,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function call(journalist: string, path: string, init: RequestInit = {}): Promise<Response> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { ...headers(journalist), ...init.headers },
-  });
+  const isUpload = init.body instanceof FormData; // The browser sets the multipart boundary.
+  const base = headers(journalist) as Record<string, string>;
+  if (isUpload) delete base["Content-Type"];
+  const response = await fetch(path, { ...init, headers: { ...base, ...init.headers } });
   if (!response.ok) {
-    throw new Error(`${init.method ?? "GET"} ${path} failed: ${response.status}`);
+    let detail: unknown = null;
+    try {
+      detail = (await response.json()).detail;
+    } catch {
+      // Not JSON: fall back to the status line.
+    }
+    const message = typeof detail === "string" ? detail : `${init.method ?? "GET"} ${path} failed: ${response.status}`;
+    throw new ApiError(response.status, detail, message);
   }
   return response;
 }
@@ -155,6 +184,11 @@ export const api = {
       `/api/embeds/${embedId}/versions/${number}/publish?accept_warnings=${acceptWarnings}`,
       { method: "POST" },
     ),
+  attach: (journalist: string, embedId: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<Attachment>(journalist, `/api/embeds/${embedId}/attachments`, { method: "POST", body });
+  },
   setEmbedLanguage: (journalist: string, embedId: string, embed_language: Language) =>
     request<Embed>(journalist, `/api/embeds/${embedId}`, {
       method: "PATCH",

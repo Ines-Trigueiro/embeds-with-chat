@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Self
 from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.language_models import BaseChatModel
@@ -15,11 +15,14 @@ from pydantic import BaseModel, Field
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
+from embeds.datasets import DatasetError, ParsedDataset, is_dataset_file, parse_dataset
 from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
 from embeds.languages import Language
 from embeds.previews import Previews
 from embeds.quality_check import Finding, Severity, check, has_blockers
-from embeds.store import Embed, Message, Role, Store, Version
+from embeds.store import Attachment, AttachmentKind, Embed, Message, Role, Store, Version
+
+MAX_UPLOAD_BYTES = 5_000_000
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -111,8 +114,37 @@ class MessageOut(BaseModel):
         )
 
 
+class ColumnOut(BaseModel):
+    name: str
+    type: str
+
+
+class AttachmentOut(BaseModel):
+    id: str
+    kind: AttachmentKind
+    name: str
+    created_at: str
+    rows: int | None = None  # Datasets only.
+    columns: list[ColumnOut] | None = None  # Datasets only.
+
+    @classmethod
+    def of(cls, attachment: Attachment) -> Self:
+        out = cls(
+            id=attachment.id,
+            kind=attachment.kind,
+            name=attachment.name,
+            created_at=attachment.created_at,
+        )
+        if attachment.kind == "dataset":
+            dataset = ParsedDataset.from_bytes(attachment.content)
+            out.rows = len(dataset.rows)
+            out.columns = [ColumnOut(name=c.name, type=c.type) for c in dataset.columns]
+        return out
+
+
 class OpenedEmbed(EmbedOut):
     messages: list[MessageOut]
+    attachments: list[AttachmentOut]
     versions: list[VersionOut]
     latest_version: VersionOut | None
     progress_frame_url: str
@@ -149,6 +181,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         return OpenedEmbed(
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed.id)],
+            attachments=[AttachmentOut.of(a) for a in store.attachments_of(embed.id)],
             versions=versions,
             latest_version=versions[-1] if versions else None,
             progress_frame_url=f"{origin}/progress-frame",
@@ -190,6 +223,25 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             )
         store.publish(embed_id, number)
         return opened(embed)
+
+    @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
+    async def attach(embed_id: str, file: UploadFile, journalist: Journalist) -> AttachmentOut:
+        """Attach a spreadsheet (a Dataset). A new upload is always a new attachment."""
+        owned_embed(embed_id, journalist)
+        name = (file.filename or "attachment").strip()[:200]
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=422, detail="The file is larger than 5 MB.")
+        if not is_dataset_file(name):
+            raise HTTPException(status_code=422, detail="Attach a spreadsheet (.csv or .xlsx).")
+        try:
+            dataset = parse_dataset(name, content)
+        except DatasetError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        attachment = store.add_attachment(
+            embed_id, "dataset", name, "application/json", dataset.to_bytes()
+        )
+        return AttachmentOut.of(attachment)
 
     @app.patch("/api/embeds/{embed_id}")
     def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:

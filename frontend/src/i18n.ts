@@ -74,6 +74,12 @@ const en = {
       missing_viewport: "It has no viewport setting, so it may look wrong on phones.",
     },
   },
+  attachments: {
+    heading: "Attachments",
+    attach: "Attach a spreadsheet (.csv, .xlsx)",
+    rows_one: "{{count}} row",
+    rows_other: "{{count}} rows",
+  },
   guides: { quiz: "quiz", calculator: "calculator", chart: "chart", map: "map", timeline: "timeline" },
 };
 
@@ -146,6 +152,12 @@ const nb: Translations = {
       missing_viewport: "Den mangler viewport-innstilling, så den kan se feil ut på mobil.",
     },
   },
+  attachments: {
+    heading: "Vedlegg",
+    attach: "Legg ved et regneark (.csv, .xlsx)",
+    rows_one: "{{count}} rad",
+    rows_other: "{{count}} rader",
+  },
   guides: { quiz: "quiz", calculator: "kalkulator", chart: "graf", map: "kart", timeline: "tidslinje" },
 };
 
@@ -215,6 +227,12 @@ const da: Translations = {
       missing_source: "Ingen kildelinje («Kilde:») er synlig.",
       missing_viewport: "Den mangler viewport-indstilling, så den kan se forkert ud på mobil.",
     },
+  },
+  attachments: {
+    heading: "Vedhæftninger",
+    attach: "Vedhæft et regneark (.csv, .xlsx)",
+    rows_one: "{{count}} række",
+    rows_other: "{{count}} rækker",
   },
   guides: { quiz: "quiz", calculator: "beregner", chart: "graf", map: "kort", timeline: "tidslinje" },
 };

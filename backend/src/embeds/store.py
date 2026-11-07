@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS publications (
     FOREIGN KEY (embed_id, number) REFERENCES versions (embed_id, number)
 );
 
+-- Files the journalist attached to an embed: datasets now, images later. Never changed.
+CREATE TABLE IF NOT EXISTS attachments (
+    id          TEXT PRIMARY KEY,
+    embed_id    TEXT NOT NULL REFERENCES embeds (id),
+    kind        TEXT NOT NULL CHECK (kind IN ('dataset', 'image')),
+    name        TEXT NOT NULL,
+    media_type  TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    content     BLOB NOT NULL  -- a dataset's parsed rows as JSON, or an image's bytes
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     embed_id        TEXT NOT NULL REFERENCES embeds (id),
     seq             INTEGER NOT NULL,
@@ -92,6 +103,20 @@ class Message:
     version_number: int | None
     created_at: str
     guides: tuple[str, ...] = ()
+
+
+AttachmentKind = Literal["dataset", "image"]
+
+
+@dataclass(frozen=True)
+class Attachment:
+    id: str
+    embed_id: str
+    kind: AttachmentKind
+    name: str
+    media_type: str
+    created_at: str
+    content: bytes
 
 
 def _now() -> str:
@@ -247,3 +272,23 @@ class Store:
         with self._connect() as db:
             row = db.execute(query, (embed_id, *args)).fetchone()
         return Version(**row) if row else None
+
+    def add_attachment(
+        self, embed_id: str, kind: AttachmentKind, name: str, media_type: str, content: bytes
+    ) -> Attachment:
+        attachment = Attachment(
+            secrets.token_urlsafe(6), embed_id, kind, name, media_type, _now(), content
+        )
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO attachments VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (attachment.id, embed_id, kind, name, media_type, attachment.created_at, content),
+            )
+        return attachment
+
+    def attachments_of(self, embed_id: str) -> list[Attachment]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT * FROM attachments WHERE embed_id = ? ORDER BY created_at", (embed_id,)
+            ).fetchall()
+        return [Attachment(**row) for row in rows]

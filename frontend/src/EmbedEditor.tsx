@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, type Message, type OpenedEmbed, type Version } from "./api";
+import { api, type Attachment, type Message, type OpenedEmbed, type Version } from "./api";
 import { currentLanguage, type Language } from "./i18n";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
@@ -83,6 +83,23 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   const latestNumber = versions.length ? versions[versions.length - 1].number : null;
 
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function attach(file: File) {
+    setAttachError(null);
+    setAttaching(true);
+    try {
+      const attachment: Attachment = await api.attach(journalist, embedId, file);
+      setEmbed((current) => current && { ...current, attachments: [...current.attachments, attachment] });
+    } catch (e) {
+      setAttachError((e as Error).message);
+    } finally {
+      setAttaching(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   async function publish(shown: Version) {
     const warnings = shown.findings.filter((f) => f.severity === "warn");
@@ -138,7 +155,35 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             </li>
           ))}
         </ol>
+        {embed.attachments.length > 0 && (
+          <ul className="attachments" aria-label={t("attachments.heading")}>
+            {embed.attachments.map((a) => (
+              <li key={a.id} title={a.columns?.map((c) => c.name).join(", ")}>
+                {a.kind === "dataset" ? "📊" : "🖼"} {a.name}
+                {a.rows !== null && <span className="hint"> · {t("attachments.rows", { count: a.rows })}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {attachError && <p className="error">{attachError}</p>}
         <form className="composer" onSubmit={send}>
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            accept=".csv,.xlsx"
+            onChange={(e) => e.target.files?.[0] && attach(e.target.files[0])}
+          />
+          <button
+            type="button"
+            className="attach"
+            title={t("attachments.attach")}
+            aria-label={t("attachments.attach")}
+            disabled={attaching || streaming}
+            onClick={() => fileInput.current?.click()}
+          >
+            {attaching ? "…" : "📎"}
+          </button>
           <textarea
             value={input}
             rows={3}

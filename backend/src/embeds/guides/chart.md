@@ -9,6 +9,8 @@
 - Set `maintainAspectRatio: false` inside a container with a height that suits mobile
   (around 300px), so the chart fits narrow screens.
 - Start bar charts' value axis at zero.
+- If you print values next to bars, leave room for them (`layout: { padding: { right: 48 } }`
+  for horizontal bars), so the largest value isn't cut off on narrow screens.
 - Use at most a handful of colours, with sufficient contrast. Label series directly or
   with a legend, never by colour alone.
 - Include the data as a visually hidden <table> as well, so screen readers can read it.
