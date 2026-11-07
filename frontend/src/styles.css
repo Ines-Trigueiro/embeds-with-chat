@@ -74,3 +74,12 @@ button.badge { border: 0; cursor: pointer; }
 .chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .chat-head h2 { margin: 0; }
 .embed-language { display: flex; align-items: center; gap: 8px; font-weight: normal; color: var(--muted); font-size: 0.9rem; }
+.published { color: #1d6b38; font-weight: 600; }
+.publish-panel { margin-top: 12px; display: grid; gap: 10px; }
+.publish-panel h3 { margin: 0; font-size: 1rem; }
+.copy-field { display: grid; gap: 4px; font-weight: normal; font-size: 0.9rem; color: var(--muted); }
+.copy-field .row { margin: 0; }
+.copy-field input { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--text); }
+/* The preview keeps a usable height; the publish panel scrolls below it. */
+.preview { overflow-y: auto; }
+.preview-stage { flex: 1 0 560px; }

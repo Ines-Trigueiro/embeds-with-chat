@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS versions (
     PRIMARY KEY (embed_id, number)
 );
 
+-- A version is published when it has a row here; publishing never changes the version.
+CREATE TABLE IF NOT EXISTS publications (
+    embed_id      TEXT NOT NULL,
+    number        INTEGER NOT NULL,
+    published_at  TEXT NOT NULL,
+    PRIMARY KEY (embed_id, number),
+    FOREIGN KEY (embed_id, number) REFERENCES versions (embed_id, number)
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     embed_id        TEXT NOT NULL REFERENCES embeds (id),
     seq             INTEGER NOT NULL,
@@ -196,3 +205,32 @@ class Store:
                 "SELECT * FROM versions WHERE embed_id = ? ORDER BY number", (embed_id,)
             ).fetchall()
         return [Version(**row) for row in rows]
+
+    def publish(self, embed_id: str, number: int) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO publications VALUES (?, ?, ?)", (embed_id, number, _now())
+            )
+
+    def published_numbers(self, embed_id: str) -> set[int]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT number FROM publications WHERE embed_id = ?", (embed_id,)
+            ).fetchall()
+        return {row["number"] for row in rows}
+
+    def published_version(self, embed_id: str, number: int | None = None) -> Version | None:
+        """A published version: the given one, or the newest published one."""
+        query = (
+            "SELECT v.* FROM versions v JOIN publications p USING (embed_id, number)"
+            " WHERE v.embed_id = ?"
+        )
+        if number is None:
+            args: tuple[str | int, ...] = (embed_id,)
+            query += " ORDER BY v.number DESC LIMIT 1"
+        else:
+            args = (embed_id, number)
+            query += " AND v.number = ?"
+        with self._connect() as db:
+            row = db.execute(query, args).fetchone()
+        return Version(**row) if row else None

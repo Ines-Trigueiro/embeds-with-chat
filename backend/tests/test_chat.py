@@ -26,7 +26,9 @@ def test_reply_with_one_html_block_becomes_a_version_served_by_the_embed_origin(
     assert version["preview_url"].startswith("http://embeds.test/")
     served = embed_origin.get(path_of(version["preview_url"]))
     assert served.status_code == 200
-    assert served.text == html
+    # The model's document, as written; the embed origin only adds the resize script.
+    assert served.text.startswith(html[: html.index("</body>")])
+    assert served.text.rstrip().endswith("</body>\n</html>")
     assert only(events, "error") == []
 
 

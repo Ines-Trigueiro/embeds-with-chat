@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, type Message, type OpenedEmbed, type Version } from "./api";
 import { currentLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from "./i18n";
 import { Preview, type Device } from "./Preview";
+import { PublishPanel } from "./PublishPanel";
 
 interface Turn extends Message {
   error?: string;
@@ -80,6 +81,19 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
 
   const version = versions.find((v) => v.number === shownNumber) ?? null;
   const latestNumber = versions.length ? versions[versions.length - 1].number : null;
+
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  async function publish(number: number) {
+    setPublishError(null);
+    try {
+      const updated = await api.publish(journalist, embedId, number);
+      setEmbed(updated);
+      setVersions(updated.versions);
+    } catch (e) {
+      setPublishError((e as Error).message);
+    }
+  }
 
   async function changeEmbedLanguage(embed_language: Language) {
     const changed = await api.setEmbedLanguage(journalist, embedId, embed_language);
@@ -164,6 +178,14 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
               </select>
             </label>
           )}
+          {version &&
+            (version.published ? (
+              <span className="published">{t("publish.published")}</span>
+            ) : (
+              <button disabled={streaming} onClick={() => publish(version.number)}>
+                {t("publish.publish", { number: version.number })}
+              </button>
+            ))}
           <div className="toggle" role="group" aria-label={t("editor.previewSize")}>
             {(["mobile", "desktop"] as const).map((d) => (
               <button
@@ -183,6 +205,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
           progressHtml={progressHtml}
           device={device}
         />
+        {publishError && <p className="error">{publishError}</p>}
+        <PublishPanel embed={embed} shown={version} />
       </section>
     </div>
   );

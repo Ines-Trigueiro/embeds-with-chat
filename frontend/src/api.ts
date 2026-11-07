@@ -40,6 +40,10 @@ export interface Version {
   number: number;
   created_at: string;
   preview_url: string;
+  published: boolean;
+  /** Pinned to this version; only once it is published. */
+  embed_url: string | null;
+  snippet: string | null;
 }
 
 export interface Message {
@@ -53,6 +57,9 @@ export interface OpenedEmbed extends Embed {
   versions: Version[];
   latest_version: Version | null;
   progress_frame_url: string;
+  /** Follow the newest published version; only once something is published. */
+  embed_url: string | null;
+  snippet: string | null;
 }
 
 /** Server-sent events from one chat turn; see the backend's chat module. */
@@ -127,6 +134,10 @@ export const api = {
     request<Embed>(journalist, "/api/embeds", {
       method: "POST",
       body: JSON.stringify({ title, embed_language }),
+    }),
+  publish: (journalist: string, embedId: string, number: number) =>
+    request<OpenedEmbed>(journalist, `/api/embeds/${embedId}/versions/${number}/publish`, {
+      method: "POST",
     }),
   setEmbedLanguage: (journalist: string, embedId: string, embed_language: Language) =>
     request<Embed>(journalist, `/api/embeds/${embedId}`, {
