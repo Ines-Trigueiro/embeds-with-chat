@@ -45,7 +45,7 @@ def editor(settings: Settings, fake_model: GenericFakeChatModel) -> Iterator[Tes
 
 
 @pytest.fixture
-def embeds(settings: Settings) -> Iterator[TestClient]:
+def embed_origin(settings: Settings) -> Iterator[TestClient]:
     with TestClient(create_embed_app(settings)) as client:
         yield client
 

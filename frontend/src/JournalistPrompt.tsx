@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export function UsernamePrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
+export function JournalistPrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
   const [name, setName] = useState("");
   const trimmed = name.trim();
 

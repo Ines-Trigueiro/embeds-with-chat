@@ -32,7 +32,7 @@ class Embed:
 
 
 def new_embed_id() -> str:
-    """Short, random and unguessable, so unpublished embeds can't be enumerated."""
+    """Short, random and unguessable, so versions that are not published can't be found by guessing."""
     return secrets.token_urlsafe(9)
 
 

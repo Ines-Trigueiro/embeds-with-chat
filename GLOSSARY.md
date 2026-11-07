@@ -64,6 +64,14 @@ _Avoid_: Host page, parent page
 
 ## Delivery
 
+**Editor origin**:
+The address the journalist uses to chat, preview and publish. Never serves embeds to readers.
+_Avoid_: App, frontend, editor (alone, it reads as a person)
+
+**Embed origin**:
+The separate address that serves embeds, both to the preview and to readers. Kept apart from the editor origin so an embed can never act with the editor's privileges.
+_Avoid_: CDN, embed server
+
 **Snippet**:
 The HTML the journalist pastes into an article to display an embed.
 _Avoid_: Embed code, script tag

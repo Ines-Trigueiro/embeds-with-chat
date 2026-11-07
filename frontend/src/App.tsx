@@ -2,14 +2,14 @@ import { useState } from "react";
 
 import { forgetJournalist, storedJournalist, storeJournalist } from "./api";
 import { MyEmbeds } from "./MyEmbeds";
-import { UsernamePrompt } from "./UsernamePrompt";
+import { JournalistPrompt } from "./JournalistPrompt";
 
 export function App() {
   const [journalist, setJournalist] = useState(storedJournalist);
 
   if (!journalist) {
     return (
-      <UsernamePrompt
+      <JournalistPrompt
         onSubmit={(name) => {
           storeJournalist(name);
           setJournalist(name);
@@ -31,7 +31,7 @@ export function App() {
               setJournalist(null);
             }}
           >
-            Switch user
+            Switch journalist
           </button>
         </span>
       </header>
