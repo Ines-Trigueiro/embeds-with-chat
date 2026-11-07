@@ -18,3 +18,12 @@ Where it pushed back on me:
 - It warned that the combined scope (SPA + LangChain + streaming + attachments + quality checks) is large for 4–6 hours. I kept the scope.
 - It asked me to clarify "skills". They became **Guides**: markdown best-practice files the model loads through a tool, named that way to avoid confusion with Claude Code skills.
 - It pointed out that pinning versions in the snippet changes what "publish" means. The result: only explicitly published versions reach readers.
+
+## 2. Ticket #1: skeleton
+
+- The assistant built the slice test-first through the HTTP API, with the chat model injected so tests run against a fake.
+- I had it run a two-axis review (standards and spec, as separate sub-agents) before moving on. The review caught two real bugs:
+  - **Names outside Latin-1 broke every request.** The journalist's name was sent as an HTTP header, which browsers refuse for those characters. A journalist named "Łukasz" got past the prompt and then every request failed. Fixed by URL-encoding the name, test first.
+  - **A `.gitignore` rule didn't match.** The path for the built frontend was anchored at the wrong place.
+- The review also caught code drifting from the glossary ("user" instead of "Journalist"). I had it rename, and add *Editor origin* and *Embed origin* to the glossary.
+- I kept the unused hooks for the chat model and settings that the review flagged as speculative, because ticket #2 uses them straight away.
