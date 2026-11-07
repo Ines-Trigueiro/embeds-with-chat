@@ -73,6 +73,7 @@ class MessageOut(BaseModel):
 
 class OpenedEmbed(EmbedOut):
     messages: list[MessageOut]
+    versions: list[VersionOut]
     latest_version: VersionOut | None
     progress_frame_url: str
 
@@ -106,11 +107,12 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     @app.get("/api/embeds/{embed_id}")
     def open_embed(embed_id: str, journalist: Journalist) -> OpenedEmbed:
         embed = owned_embed(embed_id, journalist)
-        latest = store.latest_version(embed_id)
+        versions = [version_out(v) for v in store.versions_of(embed_id)]
         return OpenedEmbed(
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed_id)],
-            latest_version=version_out(latest) if latest else None,
+            versions=versions,
+            latest_version=versions[-1] if versions else None,
             progress_frame_url=f"{settings.embed_origin}/progress-frame",
         )
 

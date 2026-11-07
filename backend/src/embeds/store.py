@@ -175,3 +175,10 @@ class Store:
                 (embed_id,),
             ).fetchone()
         return Version(**row) if row else None
+
+    def versions_of(self, embed_id: str) -> list[Version]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT * FROM versions WHERE embed_id = ? ORDER BY number", (embed_id,)
+            ).fetchall()
+        return [Version(**row) for row in rows]

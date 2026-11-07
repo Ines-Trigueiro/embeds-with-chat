@@ -13,8 +13,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
-
+from embeds.context import turn_context
 from embeds.prompt import system_prompt
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
 from embeds.store import Store, Version
@@ -28,8 +27,10 @@ ChatEvent = tuple[str, dict[str, Any] | Version]
 async def chat_turn(
     store: Store, model: BaseChatModel, embed_id: str, content: str, embed_origin: str
 ) -> AsyncIterator[ChatEvent]:
+    history = store.messages_of(embed_id)
+    latest = store.latest_version(embed_id)
+    messages = turn_context(system_prompt(embed_origin), history, latest, content)
     store.add_message(embed_id, "journalist", content)
-    messages = [SystemMessage(system_prompt(embed_origin)), HumanMessage(content)]
 
     stream = ReplyStream()
     last_sent_at = 0.0

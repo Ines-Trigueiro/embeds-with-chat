@@ -10,7 +10,8 @@ interface Turn extends Message {
 export function EmbedEditor({ journalist, embedId }: { journalist: string; embedId: string }) {
   const [embed, setEmbed] = useState<OpenedEmbed | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [version, setVersion] = useState<Version | null>(null);
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [shownNumber, setShownNumber] = useState<number | null>(null);
   const [progressHtml, setProgressHtml] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState("");
@@ -23,7 +24,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
       (opened) => {
         setEmbed(opened);
         setTurns(opened.messages);
-        setVersion(opened.latest_version);
+        setVersions(opened.versions);
+        setShownNumber(opened.latest_version?.number ?? null);
       },
       (e: Error) => setLoadError(e.message),
     );
@@ -54,7 +56,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
         if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
         else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
-          setVersion(data);
+          setVersions((current) => [...current, data]);
+          setShownNumber(data.number);
           updateModelTurn((t) => ({ ...t, version_number: data.number }));
         } else if (event === "error") updateModelTurn((t) => ({ ...t, error: data.message }));
         else if (event === "done") updateModelTurn((t) => ({ ...t, text: data.text }));
@@ -66,6 +69,9 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
       setStreaming(false);
     }
   }
+
+  const version = versions.find((v) => v.number === shownNumber) ?? null;
+  const latestNumber = versions.length ? versions[versions.length - 1].number : null;
 
   if (loadError) return <p className="error">{loadError}</p>;
   if (!embed) return <p className="hint">Loading…</p>;
@@ -79,7 +85,9 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             <li key={i} className={`turn ${turn.role}`}>
               {turn.text || (streaming && i === turns.length - 1 ? "…" : "")}
               {turn.version_number !== null && (
-                <span className="badge">Version {turn.version_number}</span>
+                <button className="badge" onClick={() => setShownNumber(turn.version_number)}>
+                  Version {turn.version_number}
+                </button>
               )}
               {turn.error && <p className="error">{turn.error}</p>}
             </li>
@@ -103,7 +111,25 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
 
       <section className="preview card">
         <div className="preview-bar">
-          <span>{version ? `Version ${version.number}` : "No version yet"}</span>
+          {versions.length === 0 ? (
+            <span>No version yet</span>
+          ) : (
+            <label className="version-picker">
+              Showing
+              <select
+                value={shownNumber ?? ""}
+                disabled={streaming}
+                onChange={(e) => setShownNumber(Number(e.target.value))}
+              >
+                {[...versions].reverse().map((v) => (
+                  <option key={v.number} value={v.number}>
+                    Version {v.number}
+                    {v.number === latestNumber ? " (latest)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="toggle" role="group" aria-label="Preview size">
             {(["mobile", "desktop"] as const).map((d) => (
               <button

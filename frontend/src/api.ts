@@ -47,6 +47,7 @@ export interface Message {
 
 export interface OpenedEmbed extends Embed {
   messages: Message[];
+  versions: Version[];
   latest_version: Version | null;
   progress_frame_url: string;
 }
