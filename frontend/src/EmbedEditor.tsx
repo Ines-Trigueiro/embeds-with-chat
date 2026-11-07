@@ -5,6 +5,7 @@ import { api, type Message, type OpenedEmbed, type Version } from "./api";
 import { currentLanguage, type Language } from "./i18n";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
+import { Findings } from "./Findings";
 import { PublishPanel } from "./PublishPanel";
 
 interface Turn extends Message {
@@ -83,10 +84,12 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
 
   const [publishError, setPublishError] = useState<string | null>(null);
 
-  async function publish(number: number) {
+  async function publish(shown: Version) {
+    const warnings = shown.findings.filter((f) => f.severity === "warn");
+    if (warnings.length > 0 && !window.confirm(t("quality.confirm", { count: warnings.length }))) return;
     setPublishError(null);
     try {
-      const updated = await api.publish(journalist, embedId, number);
+      const updated = await api.publish(journalist, embedId, shown.number, warnings.length > 0);
       setEmbed(updated);
       setVersions(updated.versions);
     } catch (e) {
@@ -176,7 +179,13 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             (version.published ? (
               <span className="published">{t("publish.published")}</span>
             ) : (
-              <button disabled={streaming} onClick={() => publish(version.number)}>
+              <button
+                disabled={streaming || version.findings.some((f) => f.severity === "block")}
+                title={
+                  version.findings.some((f) => f.severity === "block") ? t("quality.cannotPublish") : undefined
+                }
+                onClick={() => publish(version)}
+              >
                 {t("publish.publish", { number: version.number })}
               </button>
             ))}
@@ -199,6 +208,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
           progressHtml={progressHtml}
           device={device}
         />
+        {version && !streaming && <Findings findings={version.findings} />}
         {publishError && <p className="error">{publishError}</p>}
         <PublishPanel embed={embed} shown={version} />
       </section>

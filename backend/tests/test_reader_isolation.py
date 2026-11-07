@@ -21,6 +21,7 @@ from conftest import FakeChatModel, doc
 from embeds.config import Settings
 from embeds.editor import create_editor_app
 from embeds.embed_origin import create_embed_app
+from embeds.store import Store
 
 playwright_api = pytest.importorskip("playwright.sync_api")
 
@@ -46,6 +47,7 @@ HOSTILE_EMBED = doc("""
 class Running:
     editor_url: str
     embed_url: str
+    store: Store
 
 
 def free_port() -> int:
@@ -79,17 +81,21 @@ def running(tmp_path: Path) -> Iterator[Running]:
         serve(create_editor_app(settings, chat_model=model), editor_port),
         serve(create_embed_app(settings), embed_port),
     ]
-    yield Running(settings.app_origin, settings.embed_origin)
+    yield Running(settings.app_origin, settings.embed_origin, Store(settings.database_path))
     for server in servers:
         server.should_exit = True
 
 
-def publish_hostile_embed(editor_url: str) -> str:
+def publish_hostile_embed(running: Running) -> str:
+    """The quality check refuses this embed, so publish it behind the check's back:
+    the point is that readers stay safe even if something hostile gets published."""
     headers = {"X-Journalist": "kari"}
-    with httpx.Client(base_url=editor_url, headers=headers) as client:
+    with httpx.Client(base_url=running.editor_url, headers=headers) as client:
         embed_id: str = client.post("/api/embeds", json={"title": "Fiendtlig"}).json()["id"]
         client.post(f"/api/embeds/{embed_id}/messages", json={"content": "lag", "language": "nb"})
-        client.post(f"/api/embeds/{embed_id}/versions/1/publish").raise_for_status()
+        refused = client.post(f"/api/embeds/{embed_id}/versions/1/publish")
+        assert refused.status_code == 422, "the quality check should refuse this embed"
+    running.store.publish(embed_id, 1)
     return embed_id
 
 
@@ -107,7 +113,7 @@ def browser() -> Iterator[Any]:
 def test_a_published_embed_cannot_reach_the_article_page_and_sizes_itself(
     running: Running, browser: Any
 ) -> None:
-    embed_id = publish_hostile_embed(running.editor_url)
+    embed_id = publish_hostile_embed(running)
     page = browser.new_page()
     popups: list[Any] = []
     page.on("popup", lambda popup: popups.append(popup))

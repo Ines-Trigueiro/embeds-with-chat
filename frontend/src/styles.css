@@ -83,3 +83,8 @@ button.badge { border: 0; cursor: pointer; }
 /* The preview keeps a usable height; the publish panel scrolls below it. */
 .preview { overflow-y: auto; }
 .preview-stage { flex: 1 0 560px; }
+.findings { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; }
+.findings li { padding: 8px 10px; border-radius: 6px; }
+.findings li.block { background: #fbe9e7; color: #8c1d18; }
+.findings li.warn { background: #fff4e0; color: #6b4500; }
+.findings.ok { color: #1d6b38; font-size: 0.9rem; margin: 10px 0 0; }

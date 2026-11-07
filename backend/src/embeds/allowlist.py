@@ -44,7 +44,18 @@ LIBRARIES: tuple[Library, ...] = (
 
 MAP_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 MAP_TILE_HOST = "https://tile.openstreetmap.org"
-MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright"
+MAP_ATTRIBUTION = f'&copy; <a href="{OSM_COPYRIGHT}">OpenStreetMap</a>'
+
+# Addresses that may appear in an embed without being loaded: XML namespaces (inline SVG)
+# and the attribution link OpenStreetMap requires.
+NON_LOADING_URLS = ("http://www.w3.org/", OSM_COPYRIGHT)
+
+
+def allowed_url_prefixes(embed_origin: str) -> tuple[str, ...]:
+    """Every address an embed may mention: what the CSP allows, plus non-loading ones."""
+    libraries = tuple(lib.base_url for lib in LIBRARIES)
+    return (*libraries, MAP_TILE_HOST + "/", embed_origin + "/", *NON_LOADING_URLS)
 
 
 def content_security_policy(embed_origin: str) -> str:

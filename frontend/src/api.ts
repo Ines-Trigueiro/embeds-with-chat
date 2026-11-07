@@ -43,6 +43,14 @@ export interface Version {
   published: boolean;
   /** Pinned to this version; only once it is published. */
   delivery: Delivery | null;
+  /** From the quality check. */
+  findings: Finding[];
+}
+
+export interface Finding {
+  rule: string;
+  severity: "block" | "warn";
+  detail: string;
 }
 
 /** What the journalist pastes into an article. */
@@ -141,10 +149,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ title, embed_language }),
     }),
-  publish: (journalist: string, embedId: string, number: number) =>
-    request<OpenedEmbed>(journalist, `/api/embeds/${embedId}/versions/${number}/publish`, {
-      method: "POST",
-    }),
+  publish: (journalist: string, embedId: string, number: number, acceptWarnings: boolean) =>
+    request<OpenedEmbed>(
+      journalist,
+      `/api/embeds/${embedId}/versions/${number}/publish?accept_warnings=${acceptWarnings}`,
+      { method: "POST" },
+    ),
   setEmbedLanguage: (journalist: string, embedId: string, embed_language: Language) =>
     request<Embed>(journalist, `/api/embeds/${embedId}`, {
       method: "PATCH",

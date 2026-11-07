@@ -169,5 +169,9 @@ def only(events: list[tuple[str, Any]], name: str) -> list[Any]:
 
 
 def doc(body: str) -> str:
-    """A minimal complete HTML document, as the model is asked to produce."""
-    return f"<!doctype html>\n<html lang=\"nb\">\n<head><title>t</title></head>\n<body>{body}</body>\n</html>"
+    """A minimal complete HTML document that passes the quality check."""
+    return (
+        '<!doctype html>\n<html lang="nb">\n<head><title>t</title>'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head>\n'
+        f"<body>{body}<p>Kilde: test</p></body>\n</html>"
+    )

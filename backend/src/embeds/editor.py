@@ -18,6 +18,7 @@ from embeds.config import Settings
 from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
 from embeds.languages import Language
 from embeds.previews import Previews
+from embeds.quality_check import Finding, Severity, check, has_blockers
 from embeds.store import Embed, Message, Role, Store, Version
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -75,12 +76,23 @@ class Delivery(BaseModel):
     embed_url: str
 
 
+class FindingOut(BaseModel):
+    rule: str
+    severity: Severity
+    detail: str
+
+    @classmethod
+    def of(cls, finding: Finding) -> Self:
+        return cls(rule=finding.rule, severity=finding.severity, detail=finding.detail)
+
+
 class VersionOut(BaseModel):
     number: int
     created_at: str
     preview_url: str
     published: bool
     delivery: Delivery | None  # Pinned to this version; only once it is published.
+    findings: list[FindingOut]  # From the quality check.
 
 
 class MessageOut(BaseModel):
@@ -128,6 +140,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             preview_url=previews.url(embed_id, number),
             published=published,
             delivery=delivery(embed_id, number) if published else None,
+            findings=[FindingOut.of(f) for f in check(version.html, origin)],
         )
 
     def opened(embed: Embed) -> OpenedEmbed:
@@ -161,10 +174,20 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         return opened(owned_embed(embed_id, journalist))
 
     @app.post("/api/embeds/{embed_id}/versions/{number}/publish")
-    def publish(embed_id: str, number: int, journalist: Journalist) -> OpenedEmbed:
+    def publish(
+        embed_id: str, number: int, journalist: Journalist, accept_warnings: bool = False
+    ) -> OpenedEmbed:
+        """Publish, gated by the quality check: blockers refuse, warnings need confirming."""
         embed = owned_embed(embed_id, journalist)
-        if store.version(embed_id, number) is None:
+        version = store.version(embed_id, number)
+        if version is None:
             raise HTTPException(status_code=404, detail="No such version")
+        findings = check(version.html, origin)
+        if has_blockers(findings) or (findings and not accept_warnings):
+            raise HTTPException(
+                status_code=422 if has_blockers(findings) else 409,
+                detail={"findings": [FindingOut.of(f).model_dump() for f in findings]},
+            )
         store.publish(embed_id, number)
         return opened(embed)
 
