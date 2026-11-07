@@ -6,7 +6,7 @@ import { api, type ChatEvent, type Embed, type Message, type OpenedEmbed, type V
 import { EditableTitle } from "./EditableTitle";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Flag } from "./Flag";
-import { Findings } from "./Findings";
+import { FindingChips } from "./Findings";
 import { currentLanguage, type Language } from "./i18n";
 import { Icon } from "./Icon";
 import { LanguageSelect } from "./LanguagePicker";
@@ -335,8 +335,8 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
             <span>{t("editor.noVersion")}</span>
           ) : (
             <label className="version-picker">
-              {t("editor.showing")}
               <select
+                aria-label={t("editor.showing")}
                 value={shownNumber ?? ""}
                 disabled={streaming}
                 onChange={(e) => setShownNumber(Number(e.target.value))}
@@ -377,7 +377,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
                   onClick={() => setPublishing(true)}
                 >
                   <Icon name="code" size={16} />
-                  {version.published && t("publish.getCode")}
+                  {version.published && <span className="wide-only">{t("publish.getCode")}</span>}
                 </button>
               )}
             </span>
@@ -388,14 +388,16 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
                 key={d}
                 className={device === d ? "on" : ""}
                 aria-pressed={device === d}
+                title={t(`editor.${d}`)}
+                aria-label={t(`editor.${d}`)}
                 onClick={() => setDevice(d)}
               >
-                {t(`editor.${d}`)}
+                <Icon name={d} size={17} />
               </button>
             ))}
           </div>
         </div>
-        {version && !streaming && <Findings findings={version.findings} />}
+        {version && !streaming && <FindingChips key={version.number} findings={version.findings} />}
         <Preview
           versionUrl={version?.preview_url ?? null}
           progressFrameUrl={embed?.progress_frame_url ?? ""}

@@ -277,7 +277,7 @@ textarea { flex: 1; resize: none; }
 .version-picker { display: flex; align-items: center; gap: 8px; }
 .version-picker select { width: auto; padding: 5px 8px; }
 .toggle { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.toggle button { border: 0; border-radius: 0; background: none; padding: 6px 10px; }
+.toggle button { border: 0; border-radius: 0; background: none; padding: 6px 9px; }
 .toggle button.on { background: var(--accent); color: var(--accent-ink); }
 /* The stage takes what is left; the embed scrolls inside its own frame. */
 .preview-stage { flex: 1; min-height: 0; display: flex; justify-content: center; border-radius: 10px; padding: 14px; overflow: hidden;
@@ -289,6 +289,17 @@ textarea { flex: 1; resize: none; }
 .writing { position: absolute; top: 8px; right: 8px; padding: 4px 10px; border-radius: 99px; background: rgb(31 27 22 / 0.78); color: #fff; font-size: 0.85rem; }
 .published { color: var(--ok); font-weight: 600; }
 
+.chips-wrap { flex: none; display: grid; gap: 8px; margin-bottom: 10px; }
+.chips-wrap .findings { margin: 0; }
+.chips { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chips-wrap .chips { margin: 0; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 99px; font-size: 0.83rem; font-weight: 600; border: 0; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.block { background: var(--danger-soft); color: var(--danger); }
+button.chip:hover:not(:disabled) { filter: brightness(0.97); background: inherit; }
+button.chip.warn:hover:not(:disabled) { background: var(--warn-soft); }
+button.chip.block:hover:not(:disabled) { background: var(--danger-soft); }
 .findings { flex: none; list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; }
 .findings li { padding: 8px 10px; border-radius: 8px; }
 .findings li.block { background: var(--danger-soft); color: var(--danger); }
@@ -297,6 +308,8 @@ textarea { flex: 1; resize: none; }
 
 @media (max-width: 900px) {
   .editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 10px; }
+  .wide-only { display: none; }
+  .preview-bar { gap: 6px; }
   .mobile-bar { display: flex; align-items: center; gap: 8px; }
   .pane-switch { display: flex; margin: 0 auto; transform: translateX(-20px); border: 1px solid var(--border); border-radius: 99px; padding: 3px; background: var(--surface); }
   .pane-switch button { border: 0; border-radius: 99px; background: none; padding: 6px 16px; }

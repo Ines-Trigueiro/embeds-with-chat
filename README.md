@@ -26,27 +26,41 @@ Data (SQLite, attachments) lives in a Docker volume, so it survives restarts. `d
 ## Try it
 
 1. **Enter a name.** There is no password (see [Assumptions](#assumptions)).
-2. **Create an embed** and describe it, e.g. *"Lag en kalkulator for strømkostnad: kWh per måned ganger pris per kWh."*
+2. **Describe an embed** in the empty chat, e.g. *"Lag en kalkulator for strømkostnad: kWh per måned ganger pris per kWh."*
+   - The embed is created with your first message.
+   - The model suggests a short title, which shows up in the sidebar straight away.
+   - Rename it with the pencil, or by double-clicking it.
 3. **Watch it being built.**
-   - The reply streams in, and the preview fills in while the model writes.
-   - "Reading guide: calculator…" shows which best-practice guide the model loaded.
-   - Switch the preview between mobile and desktop.
-4. **Ask for changes,** e.g. *"Gjør knappene større"*. Every reply with HTML becomes a new version, and you can preview any earlier version.
-5. **Optional: attach a file** with 📎:
+   - The reply streams in as Markdown, and the preview fills in while the model writes.
+   - Shimmering status lines ("Reading guide: calculator…", "Building the embed…") show what the model is doing.
+   - Switch the preview between mobile and desktop with the two icons.
+4. **Ask for changes,** e.g. *"Gjør knappene større"*.
+   - Every reply with HTML becomes a new version, and you can preview any earlier version.
+   - Only the conversation and the embed scroll. The version picker, the publish button and the quality check stay in view.
+5. **Optional: attach a file** with the paperclip:
    - A **CSV or XLSX** becomes a dataset. The server puts its figures into the embed, so the model never retypes them.
    - An **image** can be shown in the embed ("use this logo") or used as a reference ("make it look like this").
-6. **Check the quality findings** under the preview.
+6. **Optional: change the embed's language** with the flag next to the title.
+   - If the embed has a version, it asks first, then translates that version into the new language as a new version, with nothing to type ([ADR 0004](docs/adr/0004-language-change-is-a-translation-version.md)).
+   - Dataset values stay exactly as attached.
+7. **Check the quality chip** above the preview, and click it for the details.
    - Blockers, such as a script from an unknown site, stop publishing.
-   - Warnings, such as a missing alt text or source line, need a confirmation.
-7. **Publish** and copy the snippet:
+   - Warnings, such as a missing alt text or source line, have to be ticked off in the publish dialog.
+8. **Publish.** The dialog then shows one big **Copy embed code** button, plus three plain steps for pasting it into an HTML block in the article. "Get embed code" reopens it later. The code is:
    ```html
    <script src="http://localhost:8001/loader.js" data-embed="…" async></script>
    ```
-   - Add `data-version="3"` to pin a version. Without it, the snippet follows the newest published version.
-   - Plain URLs (`/e/<id>` and `/e/<id>/v/<n>`) are also shown, for systems that only take a URL.
-8. **Open the test article** (link under the snippet, or `http://localhost:8000/test-article?embed=<id>`). It shows the embed inside a stand-in news article, sized to its content. The page sets a cookie that the embed cannot read.
+   - It follows the newest published version, so an article updates by itself when you publish again.
+   - Under *Advanced*:
+     - code pinned to one version (`data-version="3"`);
+     - plain URLs (`/e/<id>` and `/e/<id>/v/<n>`), for systems that only take a URL.
+9. **Open the test article** ("See how it looks in an article" in the dialog, or `http://localhost:8000/test-article?embed=<id>`).
+   - It shows the embed inside a stand-in news article, sized to its content.
+   - The page sets a cookie that the embed cannot read.
 
-The language dropdown switches the UI and the model's chat replies between Norwegian, Danish and English. Each embed has its own *embed language* for what readers see.
+The sidebar lists your embeds, newest first. A green dot marks a published embed. You can search the list, and collapse it to a rail (on phones it's a drawer, and the editor switches between *Chat* and *Preview*). The colours follow your system's light or dark mode.
+
+The flag dropdown at the bottom of the sidebar switches the UI and the model's chat replies between Norwegian, Danish and English. Each embed has its own *embed language* for what readers see.
 
 ## Configuration
 
@@ -114,6 +128,8 @@ backend/src/embeds/
   editor.py         editor origin: the journalist's API, the built frontend, /test-article
   embed_origin.py   embed origin: published embeds, signed previews, loader.js, images
   chat.py           one chat turn: guide tool loop, streaming events, creating a version
+  titles.py         the title suggested from the first message
+  languages.py      chat and embed languages; <html lang>; the translation request
   context.py        what the model sees each turn
   reply.py          the reply contract: prose plus at most one ```html document
   guides/*.md       base guide (the system prompt) and per-type guides, as editable markdown
