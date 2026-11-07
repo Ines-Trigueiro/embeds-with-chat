@@ -15,8 +15,12 @@ _Avoid_: Visitor, end user
 ## Embeds
 
 **Embed**:
-An interactive element (calculator, quiz, map, chart) that a journalist works on over a chat, owned by one journalist and listed under "My embeds".
+An interactive element (calculator, quiz, map, chart) that a journalist works on over a chat, owned by one journalist and listed in that journalist's sidebar.
 _Avoid_: Widget, component, interactive, project
+
+**Title**:
+The short name of an embed in the journalist's sidebar. Suggested automatically from the journalist's first message, and editable by the journalist at any time; once the journalist has edited it, it is never changed automatically.
+_Avoid_: Name, label
 
 **Version**:
 One immutable HTML document of an embed, produced by a single model reply. An embed has an ordered history of versions.
@@ -25,6 +29,10 @@ _Avoid_: Revision, draft, snapshot
 **Embed language**:
 The language readers see an embed's text in, chosen per embed. Independent of the language the journalist chats in.
 _Avoid_: Locale, content language
+
+**Translation**:
+A version produced, without a message from the journalist, by rewriting the current version's reader-facing text into a newly chosen embed language. Readers never switch language themselves.
+_Avoid_: Localisation, language switch
 
 **Work in progress**:
 The HTML the model has written so far, while its reply is still streaming. Shown in the preview, but never stored and never a version.
