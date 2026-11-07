@@ -51,10 +51,10 @@ async def chat_turn(
                 yield sse("draft", {"html": draft})
                 last_draft, last_draft_at = draft, now
     except Exception as exc:  # The provider failed: bad key, rate limit, network, ...
-        message = f"The model could not answer: {exc}"
-        store.add_message(embed_id, "model", message)
-        yield sse("error", {"message": message})
-        yield sse("done", {"text": message})
+        text = "Sorry, I couldn't answer just now. Please try again."
+        store.add_message(embed_id, "model", text)
+        yield sse("error", {"message": f"The model could not answer: {exc}"})
+        yield sse("done", {"text": text})
         return
 
     try:

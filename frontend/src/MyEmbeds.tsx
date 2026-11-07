@@ -16,8 +16,7 @@ export function MyEmbeds({ journalist }: { journalist: string }) {
     event.preventDefault();
     try {
       const embed = await api.createEmbed(journalist, title.trim());
-      setEmbeds((current) => [embed, ...(current ?? [])]);
-      setTitle("");
+      window.location.hash = `#/embeds/${embed.id}`;
     } catch (e) {
       setError((e as Error).message);
     }
@@ -46,7 +45,7 @@ export function MyEmbeds({ journalist }: { journalist: string }) {
         <ul className="embed-list">
           {embeds.map((embed) => (
             <li key={embed.id}>
-              <span>{embed.title}</span>
+              <a href={`#/embeds/${embed.id}`}>{embed.title}</a>
               <time dateTime={embed.created_at}>{new Date(embed.created_at).toLocaleString()}</time>
             </li>
           ))}

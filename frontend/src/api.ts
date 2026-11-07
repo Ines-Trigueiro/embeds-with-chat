@@ -33,10 +33,41 @@ export interface Embed {
   created_at: string;
 }
 
+export interface Version {
+  number: number;
+  created_at: string;
+  preview_url: string;
+}
+
+export interface Message {
+  role: "journalist" | "model";
+  text: string;
+  version_number: number | null;
+}
+
+export interface OpenedEmbed extends Embed {
+  messages: Message[];
+  latest_version: Version | null;
+  draft_frame_url: string;
+}
+
+/** Server-sent events from one chat turn; see the backend's chat module. */
+export type ChatEvent =
+  | { event: "text"; data: { delta: string } }
+  | { event: "draft"; data: { html: string } }
+  | { event: "version"; data: Version }
+  | { event: "error"; data: { message: string } }
+  | { event: "done"; data: { text: string } };
+
+function headers(journalist: string): HeadersInit {
+  // Browsers refuse non-Latin-1 header values, so the name travels URL-encoded.
+  return { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist) };
+}
+
 async function request<T>(journalist: string, path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist), ...init.headers },
+    headers: { ...headers(journalist), ...init.headers },
   });
   if (!response.ok) {
     throw new Error(`${init.method ?? "GET"} ${path} failed: ${response.status}`);
@@ -44,7 +75,46 @@ async function request<T>(journalist: string, path: string, init: RequestInit = 
   return (await response.json()) as T;
 }
 
+/** Send a chat message and yield the reply's events as they stream in. */
+async function* sendMessage(
+  journalist: string,
+  embedId: string,
+  content: string,
+): AsyncGenerator<ChatEvent> {
+  const response = await fetch(`/api/embeds/${embedId}/messages`, {
+    method: "POST",
+    headers: headers(journalist),
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Sending the message failed: ${response.status}`);
+  }
+
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      if (data) yield { event, data: JSON.parse(data) } as ChatEvent;
+    }
+  }
+}
+
 export const api = {
+  sendMessage,
+  openEmbed: (journalist: string, embedId: string) =>
+    request<OpenedEmbed>(journalist, `/api/embeds/${embedId}`),
   myEmbeds: (journalist: string) => request<Embed[]>(journalist, "/api/embeds"),
   createEmbed: (journalist: string, title: string) =>
     request<Embed>(journalist, "/api/embeds", { method: "POST", body: JSON.stringify({ title }) }),

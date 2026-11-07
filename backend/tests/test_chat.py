@@ -101,7 +101,8 @@ def test_model_failure_is_reported_as_an_error(
 
     assert only(events, "version") == []
     [error] = only(events, "error")
-    assert "invalid x-api-key" in error["message"]
+    assert "invalid x-api-key" in error["message"]  # the detail, for whoever runs the tool
+    assert "x-api-key" not in only(events, "done")[0]["text"]  # the chat stays readable
 
 
 def test_partial_html_is_streamed_as_drafts_while_the_model_writes(
@@ -156,4 +157,5 @@ def test_opening_an_embed_returns_its_messages_and_latest_version(
         ("model", "Laget.", 1),
     ]
     assert opened["latest_version"]["number"] == 1
+    assert opened["draft_frame_url"] == "http://embeds.test/draft-frame"
     assert editor.get(f"/api/embeds/{embed_id}", headers={"X-Journalist": "ola"}).status_code == 404

@@ -72,6 +72,7 @@ class MessageOut(BaseModel):
 class OpenedEmbed(EmbedOut):
     messages: list[MessageOut]
     latest_version: VersionOut | None
+    draft_frame_url: str
 
 
 def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
@@ -109,6 +110,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed_id)],
             latest_version=describe(latest) if latest else None,
+            draft_frame_url=f"{settings.embed_origin}/draft-frame",
         )
 
     @app.post("/api/embeds/{embed_id}/messages")
