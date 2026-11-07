@@ -17,6 +17,8 @@ from typing import Literal
 from embeds.languages import Language
 
 Role = Literal["journalist", "model"]
+# A Translation is asked for by the tool, not typed: its text is the new embed language.
+MessageKind = Literal["message", "translation"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS embeds (
@@ -65,6 +67,7 @@ CREATE TABLE IF NOT EXISTS messages (
     version_number  INTEGER,
     created_at      TEXT NOT NULL,
     guides          TEXT NOT NULL DEFAULT '[]',  -- JSON list of the guides the model read
+    kind            TEXT NOT NULL DEFAULT 'message' CHECK (kind IN ('message', 'translation')),
     PRIMARY KEY (embed_id, seq)
 );
 """
@@ -74,6 +77,7 @@ CREATE TABLE IF NOT EXISTS messages (
 MIGRATIONS = {
     ("embeds", "embed_language"): "ALTER TABLE embeds ADD COLUMN embed_language TEXT NOT NULL DEFAULT 'nb'",
     ("messages", "guides"): "ALTER TABLE messages ADD COLUMN guides TEXT NOT NULL DEFAULT '[]'",
+    ("messages", "kind"): "ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'message'",
 }
 
 
@@ -103,6 +107,7 @@ class Message:
     version_number: int | None
     created_at: str
     guides: tuple[str, ...] = ()
+    kind: MessageKind = "message"
 
 
 AttachmentKind = Literal["dataset", "image"]
@@ -196,16 +201,18 @@ class Store:
         text: str,
         version_number: int | None = None,
         guides: tuple[str, ...] = (),
+        kind: MessageKind = "message",
     ) -> Message:
         with self._connect() as db:
             (seq,) = db.execute(
                 "SELECT COALESCE(MAX(seq), 0) + 1 FROM messages WHERE embed_id = ?", (embed_id,)
             ).fetchone()
-            message = Message(embed_id, seq, role, text, version_number, _now(), guides)
+            message = Message(embed_id, seq, role, text, version_number, _now(), guides, kind)
             db.execute(
-                "INSERT INTO messages (embed_id, seq, role, text, version_number, created_at, guides)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (embed_id, seq, role, text, version_number, message.created_at, json.dumps(guides)),
+                "INSERT INTO messages"
+                " (embed_id, seq, role, text, version_number, created_at, guides, kind)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (embed_id, seq, role, text, version_number, message.created_at, json.dumps(guides), kind),
             )
         return message
 

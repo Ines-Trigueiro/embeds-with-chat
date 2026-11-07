@@ -234,14 +234,24 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
 button.badge:hover:not(:disabled) { background: var(--accent-strong); }
 .status { margin: 0 0 6px; color: var(--muted); font-size: 0.85rem; }
 /* Waiting for the model: the text shimmers, like Claude's "thinking". */
-.status.pulsing {
+.turn.marker { align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px;
+  border-radius: 99px; background: var(--surface); border: 1px dashed var(--border); color: var(--muted); font-size: 0.85rem; }
+.turn.marker .badge { margin-left: 0; }
+.dialog.small { width: min(440px, calc(100vw - 24px)); }
+.callout .flag { margin-top: 3px; }
+.status.pulsing, .pulsing-text {
   background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--accent) 50%, var(--muted) 65%, var(--muted) 100%);
   background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: shimmer 1.8s linear infinite;
 }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .status.pulsing { animation: none; background: none; color: var(--muted); }
+  .turn.marker { align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px;
+  border-radius: 99px; background: var(--surface); border: 1px dashed var(--border); color: var(--muted); font-size: 0.85rem; }
+.turn.marker .badge { margin-left: 0; }
+.dialog.small { width: min(440px, calc(100vw - 24px)); }
+.callout .flag { margin-top: 3px; }
+.status.pulsing, .pulsing-text { animation: none; background: none; color: var(--muted); }
 }
 .turn.model { white-space: normal; }
 .markdown > :first-child { margin-top: 0; }

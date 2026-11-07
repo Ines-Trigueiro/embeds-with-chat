@@ -64,6 +64,8 @@ export interface Delivery {
 
 export interface Message {
   role: "journalist" | "model";
+  /** A translation was asked for by the tool, not typed: its text is the new embed language. */
+  kind: "message" | "translation";
   text: string;
   version_number: number | null;
   /** Guides the model read for this reply. */
@@ -130,16 +132,17 @@ async function request<T>(journalist: string, path: string, init: RequestInit = 
 }
 
 /** Send a chat message and yield the reply's events as they stream in. */
-async function* sendMessage(
-  journalist: string,
-  embedId: string,
-  content: string,
-  language: Language,
-): AsyncGenerator<ChatEvent> {
-  const response = await call(journalist, `/api/embeds/${embedId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ content, language }),
-  });
+function sendMessage(journalist: string, embedId: string, content: string, language: Language) {
+  return streamTurn(journalist, `/api/embeds/${embedId}/messages`, { content, language });
+}
+
+/** Translate the current version into a new embed language (ADR 0004); events as for a message. */
+function translate(journalist: string, embedId: string, embed_language: Language, language: Language) {
+  return streamTurn(journalist, `/api/embeds/${embedId}/translations`, { embed_language, language });
+}
+
+async function* streamTurn(journalist: string, path: string, body: object): AsyncGenerator<ChatEvent> {
+  const response = await call(journalist, path, { method: "POST", body: JSON.stringify(body) });
   if (!response.body) throw new Error("The reply could not be read.");
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -165,6 +168,7 @@ async function* sendMessage(
 
 export const api = {
   sendMessage,
+  translate,
   openEmbed: (journalist: string, embedId: string) =>
     request<OpenedEmbed>(journalist, `/api/embeds/${embedId}`),
   myEmbeds: (journalist: string) => request<Embed[]>(journalist, "/api/embeds"),

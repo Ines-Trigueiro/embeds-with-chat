@@ -42,6 +42,13 @@ const en = {
     send: "Send",
     readingGuide: "Reading guide: {{name}}…",
     thinking: "Thinking…",
+    translatedTo: "Translated to {{language}}",
+    translatingTo: "Translating to {{language}}…",
+    translate: {
+      title: "Translate to {{language}}?",
+      body: "The model rewrites the text readers see in version {{number}} into {{language}}, as a new version {{next}}. The data stays exactly as it is.",
+      confirm: "Translate",
+    },
     writing: "Building the embed…",
     version: "Version {{number}}",
     noVersion: "No version yet",
@@ -53,7 +60,7 @@ const en = {
     panes: "Show",
     pane: { chat: "Chat", preview: "Preview" },
     embedLanguage: "Embed language",
-    embedLanguageHint: "The language readers see. Applies from the next reply.",
+    embedLanguageHint: "The language readers see. Changing it translates the current version.",
   },
   preview: {
     empty: "Describe the embed you want in the chat, and it appears here.",
@@ -114,6 +121,7 @@ const en = {
     rows_one: "{{count}} row",
     rows_other: "{{count}} rows",
   },
+  languages: { nb: "Norwegian", da: "Danish", en: "English" },
   guides: { quiz: "quiz", calculator: "calculator", chart: "chart", map: "map", timeline: "timeline" },
 };
 
@@ -154,6 +162,13 @@ const nb: Translations = {
     send: "Send",
     readingGuide: "Leser veiledning: {{name}} …",
     thinking: "Tenker …",
+    translatedTo: "Oversatt til {{language}}",
+    translatingTo: "Oversetter til {{language}} …",
+    translate: {
+      title: "Oversette til {{language}}?",
+      body: "Modellen skriver om teksten leserne ser i versjon {{number}} til {{language}}, som en ny versjon {{next}}. Dataene forblir nøyaktig som de er.",
+      confirm: "Oversett",
+    },
     writing: "Bygger embeden …",
     version: "Versjon {{number}}",
     noVersion: "Ingen versjon ennå",
@@ -165,7 +180,7 @@ const nb: Translations = {
     panes: "Vis",
     pane: { chat: "Chat", preview: "Forhåndsvisning" },
     embedLanguage: "Språk i embeden",
-    embedLanguageHint: "Språket leserne ser. Gjelder fra neste svar.",
+    embedLanguageHint: "Språket leserne ser. Endrer du det, oversettes gjeldende versjon.",
   },
   preview: {
     empty: "Beskriv embeden du vil ha i chatten, så dukker den opp her.",
@@ -226,6 +241,7 @@ const nb: Translations = {
     rows_one: "{{count}} rad",
     rows_other: "{{count}} rader",
   },
+  languages: { nb: "norsk", da: "dansk", en: "engelsk" },
   guides: { quiz: "quiz", calculator: "kalkulator", chart: "graf", map: "kart", timeline: "tidslinje" },
 };
 
@@ -264,6 +280,13 @@ const da: Translations = {
     send: "Send",
     readingGuide: "Læser vejledning: {{name}} …",
     thinking: "Tænker …",
+    translatedTo: "Oversat til {{language}}",
+    translatingTo: "Oversætter til {{language}} …",
+    translate: {
+      title: "Oversætte til {{language}}?",
+      body: "Modellen omskriver den tekst, læserne ser i version {{number}}, til {{language}} som en ny version {{next}}. Dataene forbliver præcis, som de er.",
+      confirm: "Oversæt",
+    },
     writing: "Bygger embeddet …",
     version: "Version {{number}}",
     noVersion: "Ingen version endnu",
@@ -275,7 +298,7 @@ const da: Translations = {
     panes: "Vis",
     pane: { chat: "Chat", preview: "Forhåndsvisning" },
     embedLanguage: "Sprog i embeddet",
-    embedLanguageHint: "Det sprog læserne ser. Gælder fra næste svar.",
+    embedLanguageHint: "Det sprog, læserne ser. Ændrer du det, oversættes den nuværende version.",
   },
   preview: {
     empty: "Beskriv det embed, du vil have, i chatten, så dukker det op her.",
@@ -336,6 +359,7 @@ const da: Translations = {
     rows_one: "{{count}} række",
     rows_other: "{{count}} rækker",
   },
+  languages: { nb: "norsk", da: "dansk", en: "engelsk" },
   guides: { quiz: "quiz", calculator: "beregner", chart: "graf", map: "kort", timeline: "tidslinje" },
 };
 

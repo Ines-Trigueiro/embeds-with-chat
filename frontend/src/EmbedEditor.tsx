@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatMarkdown } from "./ChatMarkdown";
-import { api, type Embed, type Message, type OpenedEmbed, type Version } from "./api";
+import { api, type ChatEvent, type Embed, type Message, type OpenedEmbed, type Version } from "./api";
 import { EditableTitle } from "./EditableTitle";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { Flag } from "./Flag";
 import { Findings } from "./Findings";
 import { currentLanguage, type Language } from "./i18n";
 import { Icon } from "./Icon";
@@ -14,6 +16,8 @@ import { PublishDialog } from "./PublishDialog";
 interface Turn extends Message {
   error?: string;
 }
+
+const EMPTY_TURN: Turn = { role: "journalist", kind: "message", text: "", version_number: null, guides: [] };
 
 interface Props {
   journalist: string;
@@ -41,6 +45,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const [pane, setPane] = useState<"chat" | "preview">("chat"); // Phones show one at a time.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false); // The publish dialog is open.
+  const [translating, setTranslating] = useState<Language | null>(null); // Asking to translate.
   const [attachError, setAttachError] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -82,22 +87,13 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
     setTurns((current) => [...current.slice(0, -1), update(current[current.length - 1])]);
   }
 
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
-    const content = input.trim();
-    if (!content || streaming) return;
-    setInput("");
+  /** Show one model turn as it streams in, after the journalist's (or the tool's) message. */
+  async function runTurn(asked: Turn, start: (id: string) => AsyncGenerator<ChatEvent>, onVersion?: () => void) {
     setStreaming(true);
-    setTurns((current) => [
-      ...current,
-      { role: "journalist", text: content, version_number: null, guides: [] },
-      { role: "model", text: "", version_number: null, guides: [] },
-    ]);
-
+    setTurns((current) => [...current, asked, { ...EMPTY_TURN, role: "model" }]);
     try {
       const { id } = await ensureEmbed();
-      const events = api.sendMessage(journalist, id, content, currentLanguage());
-      for await (const { event, data } of events) {
+      for await (const { event, data } of start(id)) {
         if (event === "title") {
           setEmbed((current) => current && { ...current, title: data.title });
           onChanged({ id, title: data.title });
@@ -108,6 +104,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
           setVersions((current) => [...current, data]);
           setShownNumber(data.number);
           updateModelTurn((t) => ({ ...t, version_number: data.number }));
+          onVersion?.();
         } else if (event === "error") updateModelTurn((t) => ({ ...t, error: data.message }));
         else if (event === "done") updateModelTurn((t) => ({ ...t, text: data.text }));
       }
@@ -117,6 +114,25 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
       setProgressHtml(null);
       setStreaming(false);
     }
+  }
+
+  async function send(event: React.FormEvent) {
+    event.preventDefault();
+    const content = input.trim();
+    if (!content || streaming) return;
+    setInput("");
+    await runTurn({ ...EMPTY_TURN, text: content }, (id) =>
+      api.sendMessage(journalist, id, content, currentLanguage()),
+    );
+  }
+
+  /** A Translation (ADR 0004): the embed language only changes once the translated version exists. */
+  async function translate(language: Language) {
+    await runTurn(
+      { ...EMPTY_TURN, kind: "translation", text: language },
+      (id) => api.translate(journalist, id, language, currentLanguage()),
+      () => setEmbed((current) => current && { ...current, embed_language: language }),
+    );
   }
 
   async function attach(file: File) {
@@ -143,6 +159,10 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   async function changeEmbedLanguage(embed_language: Language) {
     if (!embed) {
       setNewLanguage(embed_language);
+      return;
+    }
+    if (versions.length > 0) {
+      setTranslating(embed_language); // Ask first: a Translation costs a model call and a version.
       return;
     }
     const changed = await api.setEmbedLanguage(journalist, embed.id, embed_language);
@@ -218,6 +238,26 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
           )}
           {turns.map((turn, i) => {
             const live = streaming && i === turns.length - 1; // The reply arriving right now.
+            if (turn.kind === "translation") {
+              const language = turn.text as Language;
+              const done = turns[i + 1]?.version_number ?? null;
+              const pending = streaming && i === turns.length - 2;
+              return (
+                <li key={i} className="turn marker">
+                  <Flag language={language} />
+                  <span className={pending ? "pulsing-text" : undefined}>
+                    {pending
+                      ? t("editor.translatingTo", { language: t(`languages.${language}`) })
+                      : t("editor.translatedTo", { language: t(`languages.${language}`) })}
+                  </span>
+                  {done !== null && (
+                    <button className="badge" onClick={() => setShownNumber(done)}>
+                      {t("editor.version", { number: done })}
+                    </button>
+                  )}
+                </li>
+              );
+            }
             return (
             <li key={i} className={`turn ${turn.role}`}>
               {turn.guides.map((guide, g) => (
@@ -363,6 +403,24 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
           device={device}
         />
       </section>
+      {translating && embed && latestNumber !== null && (
+        <ConfirmDialog
+          title={t("editor.translate.title", { language: t(`languages.${translating}`) })}
+          confirm={t("editor.translate.confirm")}
+          cancel={t("publish.cancel")}
+          onConfirm={() => translate(translating)}
+          onClose={() => setTranslating(null)}
+        >
+          <p className="callout info">
+            <Flag language={translating} />
+            {t("editor.translate.body", {
+              language: t(`languages.${translating}`),
+              number: latestNumber,
+              next: latestNumber + 1,
+            })}
+          </p>
+        </ConfirmDialog>
+      )}
       {publishing && embed && version && (
         <PublishDialog
           journalist={journalist}

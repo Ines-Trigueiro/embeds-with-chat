@@ -7,12 +7,13 @@ Datasets are described (schema and a sample), never included in full (ADR 0002).
 """
 
 import base64
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from embeds.datasets import DatasetAttachment, describe_for_model, without_dataset_contents
 from embeds.images import ImageForModel
+from embeds.languages import Language, translation_request
 from embeds.store import Message, Version
 
 
@@ -26,7 +27,9 @@ def turn_context(
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = [SystemMessage(system)]
     for message in conversation:
-        if message.role == "journalist":
+        if message.kind == "translation":
+            messages.append(HumanMessage(translation_request(cast(Language, message.text))))
+        elif message.role == "journalist":
             messages.append(HumanMessage(message.text))
         else:
             messages.append(AIMessage(message.text))

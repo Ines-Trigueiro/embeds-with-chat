@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field, StringConstraints
 
-from embeds.chat import chat_turn
+from embeds.chat import ChatEvent, chat_turn
 from embeds.config import Settings
 from embeds.datasets import (
     DatasetError,
@@ -27,7 +27,16 @@ from embeds.images import image_type, image_url
 from embeds.languages import Language
 from embeds.previews import Previews
 from embeds.quality_check import Finding, Severity, check, has_blockers
-from embeds.store import Attachment, AttachmentKind, Embed, Message, Role, Store, Version
+from embeds.store import (
+    Attachment,
+    AttachmentKind,
+    Embed,
+    Message,
+    MessageKind,
+    Role,
+    Store,
+    Version,
+)
 
 MAX_ATTACHMENT_BYTES = 5_000_000
 
@@ -82,6 +91,11 @@ class EmbedOut(BaseModel):
         )
 
 
+class NewTranslation(BaseModel):
+    embed_language: Language  # The language to translate the current version into.
+    language: Language = "nb"  # The journalist's chat language.
+
+
 class NewMessage(BaseModel):
     content: str = Field(min_length=1, max_length=10_000)
     language: Language = "nb"  # The journalist's chat language.
@@ -115,6 +129,7 @@ class VersionOut(BaseModel):
 
 class MessageOut(BaseModel):
     role: Role
+    kind: MessageKind  # A translation's text is the language it translated into.
     text: str
     version_number: int | None
     guides: list[str]
@@ -123,6 +138,7 @@ class MessageOut(BaseModel):
     def of(cls, message: Message) -> Self:
         return cls(
             role=message.role,
+            kind=message.kind,
             text=message.text,
             version_number=message.version_number,
             guides=list(message.guides),
@@ -284,14 +300,8 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             embed = replace(embed, title=body.title)
         return EmbedOut.of(embed, bool(store.published_numbers(embed_id)))
 
-    @app.post("/api/embeds/{embed_id}/messages")
-    def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
-        embed = owned_embed(embed_id, journalist)
-
+    def streamed(turn: AsyncIterator[ChatEvent]) -> StreamingResponse:
         async def server_sent_events() -> AsyncIterator[str]:
-            turn = chat_turn(
-                store, chat_model, embed, body.content, body.language, settings.embed_origin
-            )
             async for event, data in turn:
                 if isinstance(data, Version):
                     payload = version_out(data, published=False).model_dump()
@@ -303,6 +313,29 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             server_sent_events(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+        )
+
+    @app.post("/api/embeds/{embed_id}/messages")
+    def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
+        embed = owned_embed(embed_id, journalist)
+        return streamed(
+            chat_turn(store, chat_model, embed, body.content, body.language, settings.embed_origin)
+        )
+
+    @app.post("/api/embeds/{embed_id}/translations")
+    def translate(embed_id: str, body: NewTranslation, journalist: Journalist) -> StreamingResponse:
+        """A Translation (ADR 0004): the current version, rewritten into a new embed language."""
+        embed = owned_embed(embed_id, journalist)
+        if store.latest_version(embed_id) is None:
+            raise HTTPException(status_code=409, detail="There is no version to translate yet.")
+        if body.embed_language == embed.embed_language:
+            raise HTTPException(status_code=409, detail="The embed is already in that language.")
+        # Stored only once the translated version exists: a failed one changes nothing.
+        embed = replace(embed, embed_language=body.embed_language)
+        return streamed(
+            chat_turn(
+                store, chat_model, embed, "", body.language, settings.embed_origin, translation=True
+            )
         )
 
     @app.get("/test-article", response_class=HTMLResponse)

@@ -21,7 +21,7 @@ from embeds.context import turn_context
 from embeds.datasets import DatasetAttachment, ParsedDataset, inject_datasets
 from embeds.guides import LOAD_GUIDE_TOOL, base_guide, load_guide
 from embeds.images import MAX_IMAGES_FOR_MODEL, ImageForModel, image_url
-from embeds.languages import Language, with_document_language
+from embeds.languages import Language, translation_request, with_document_language
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
 from embeds.store import Embed, Store, Version
 from embeds.titles import suggest_title
@@ -40,9 +40,14 @@ async def chat_turn(
     content: str,
     chat_language: Language,
     embed_origin: str,
+    translation: bool = False,
 ) -> AsyncIterator[ChatEvent]:
+    """One turn. With `translation`, the journalist typed nothing: the current version is
+    rewritten into the embed's (new) embed language, and `content` is ignored (ADR 0004)."""
     embed_id = embed.id
-    if embed.title is None:
+    if translation:
+        content = translation_request(embed.embed_language)
+    elif embed.title is None:
         # Before the reply, so the sidebar can name the embed while the journalist waits.
         title = await suggest_title(model, content)
         store.set_title(embed_id, title)
@@ -62,7 +67,10 @@ async def chat_turn(
     ][-MAX_IMAGES_FOR_MODEL:]
     system = base_guide(embed_origin, chat_language, embed.embed_language)
     messages = turn_context(system, conversation, latest, content, datasets, images)
-    store.add_message(embed_id, "journalist", content)
+    if translation:
+        store.add_message(embed_id, "journalist", embed.embed_language, kind="translation")
+    else:
+        store.add_message(embed_id, "journalist", content)
 
     stream = ReplyStream()
     html: str | None = None  # The finished document, with datasets and language applied.
@@ -83,6 +91,8 @@ async def chat_turn(
         failure = (f"The model could not answer: {exc}", MODEL_UNAVAILABLE)
     else:
         version = store.add_version(embed_id, html) if html else None
+        if translation and version:
+            store.set_embed_language(embed_id, embed.embed_language)
         number = version.number if version else None
         store.add_message(embed_id, "model", reply.text, number, tuple(guides))
         if version:

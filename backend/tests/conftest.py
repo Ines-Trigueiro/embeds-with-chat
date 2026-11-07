@@ -145,13 +145,28 @@ def chat(
     language: str = "nb",
 ) -> list[tuple[str, Any]]:
     """Send a chat message and return the streamed server-sent events as (event, data)."""
+    return streamed(
+        editor, f"/api/embeds/{embed_id}/messages", {"content": content, "language": language}, journalist
+    )
+
+
+def translate(
+    editor: TestClient, embed_id: str, embed_language: str, journalist: str = "kari", language: str = "nb"
+) -> list[tuple[str, Any]]:
+    """Ask for a Translation of the current version and return its streamed events."""
+    return streamed(
+        editor,
+        f"/api/embeds/{embed_id}/translations",
+        {"embed_language": embed_language, "language": language},
+        journalist,
+    )
+
+
+def streamed(
+    editor: TestClient, path: str, body: dict[str, str], journalist: str
+) -> list[tuple[str, Any]]:
     events: list[tuple[str, Any]] = []
-    with editor.stream(
-        "POST",
-        f"/api/embeds/{embed_id}/messages",
-        json={"content": content, "language": language},
-        headers=as_journalist(journalist),
-    ) as response:
+    with editor.stream("POST", path, json=body, headers=as_journalist(journalist)) as response:
         assert response.status_code == 200, response.read()
         assert response.headers["content-type"].startswith("text/event-stream")
         event = "message"
