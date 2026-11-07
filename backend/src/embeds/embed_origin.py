@@ -35,7 +35,7 @@ def create_embed_app(settings: Settings) -> FastAPI:
     @app.get("/e/{embed_id}")
     def latest_published(embed_id: str) -> Response:
         """What the Snippet shows by default: the newest published version."""
-        return serve(store.published_version(embed_id))
+        return serve(store.newest_published_version(embed_id))
 
     @app.get("/e/{embed_id}/v/{number}")
     def pinned(embed_id: str, number: int) -> Response:

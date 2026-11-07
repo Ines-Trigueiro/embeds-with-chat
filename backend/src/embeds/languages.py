@@ -15,16 +15,6 @@ _HTML_TAG = re.compile(r"<(html)\b([^>]*)>", re.IGNORECASE)
 _LANG_ATTRIBUTE = re.compile(r"""\s+lang\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""", re.IGNORECASE)
 
 
-def language_instructions(chat_language: Language, embed_language: Language) -> str:
-    return (
-        "## Languages\n\n"
-        f"- Reply to the journalist in {LANGUAGE_NAMES[chat_language]}.\n"
-        f"- Write all reader-facing text in {LANGUAGE_NAMES[embed_language]} and set "
-        f'<html lang="{embed_language}">, whatever language the journalist writes in.\n'
-        "- Format numbers and dates the way readers of that language expect.\n"
-    )
-
-
 def with_document_language(html: str, language: Language) -> str:
     """Set <html lang> to the embed language, replacing whatever the model wrote."""
 

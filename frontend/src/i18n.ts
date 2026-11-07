@@ -53,6 +53,7 @@ const en = {
     copy: "Copy",
     copied: "Copied",
     testArticle: "Open in a test article ↗",
+    testArticlePinned: "Open version {{number}} in a test article ↗",
   },
   guides: { quiz: "quiz", calculator: "calculator", chart: "chart", map: "map", timeline: "timeline" },
 };
@@ -105,6 +106,7 @@ const nb: Translations = {
     copy: "Kopier",
     copied: "Kopiert",
     testArticle: "Åpne i en testartikkel ↗",
+    testArticlePinned: "Åpne versjon {{number}} i en testartikkel ↗",
   },
   guides: { quiz: "quiz", calculator: "kalkulator", chart: "graf", map: "kart", timeline: "tidslinje" },
 };
@@ -155,6 +157,7 @@ const da: Translations = {
     copy: "Kopiér",
     copied: "Kopieret",
     testArticle: "Åbn i en testartikel ↗",
+    testArticlePinned: "Åbn version {{number}} i en testartikel ↗",
   },
   guides: { quiz: "quiz", calculator: "beregner", chart: "graf", map: "kort", timeline: "tidslinje" },
 };

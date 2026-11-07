@@ -11,26 +11,38 @@ interface Props {
 /** What the journalist pastes into an article, once something is published. */
 export function PublishPanel({ embed, shown }: Props) {
   const { t } = useTranslation();
-  if (!embed.snippet || !embed.embed_url) {
+  if (!embed.delivery) {
     return <p className="hint publish-panel">{t("publish.notYet")}</p>;
   }
 
-  const pinned = shown?.published && shown.snippet && shown.embed_url ? shown : null;
+  const pinned = shown?.delivery ? { number: shown.number, ...shown.delivery } : null;
   return (
     <div className="publish-panel">
       <h3>{t("publish.heading")}</h3>
-      <CopyField label={t("publish.snippetLatest")} value={embed.snippet} />
-      <CopyField label={t("publish.urlLatest")} value={embed.embed_url} />
+      <CopyField label={t("publish.snippetLatest")} value={embed.delivery.snippet} />
+      <CopyField label={t("publish.urlLatest")} value={embed.delivery.embed_url} />
+      <TestArticleLink embedId={embed.id} label={t("publish.testArticle")} />
       {pinned && (
         <>
-          <CopyField label={t("publish.snippetPinned", { number: pinned.number })} value={pinned.snippet!} />
-          <CopyField label={t("publish.urlPinned", { number: pinned.number })} value={pinned.embed_url!} />
+          <CopyField label={t("publish.snippetPinned", { number: pinned.number })} value={pinned.snippet} />
+          <CopyField label={t("publish.urlPinned", { number: pinned.number })} value={pinned.embed_url} />
+          <TestArticleLink
+            embedId={embed.id}
+            version={pinned.number}
+            label={t("publish.testArticlePinned", { number: pinned.number })}
+          />
         </>
       )}
-      <a href={`/test-article?embed=${embed.id}`} target="_blank" rel="noopener">
-        {t("publish.testArticle")}
-      </a>
     </div>
+  );
+}
+
+function TestArticleLink({ embedId, version, label }: { embedId: string; version?: number; label: string }) {
+  const query = new URLSearchParams({ embed: embedId, ...(version ? { version: String(version) } : {}) });
+  return (
+    <a href={`/test-article?${query}`} target="_blank" rel="noopener">
+      {label}
+    </a>
   );
 }
 

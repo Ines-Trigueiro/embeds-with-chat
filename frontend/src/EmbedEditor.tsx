@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type Message, type OpenedEmbed, type Version } from "./api";
-import { currentLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from "./i18n";
+import { currentLanguage, type Language } from "./i18n";
+import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
 import { PublishPanel } from "./PublishPanel";
 
 interface Turn extends Message {
   error?: string;
-  /** Guides the model read for this reply; only known while it streams. */
-  guides?: string[];
 }
 
 export function EmbedEditor({ journalist, embedId }: { journalist: string; embedId: string }) {
@@ -53,15 +52,15 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     setStreaming(true);
     setTurns((current) => [
       ...current,
-      { role: "journalist", text: content, version_number: null },
-      { role: "model", text: "", version_number: null },
+      { role: "journalist", text: content, version_number: null, guides: [] },
+      { role: "model", text: "", version_number: null, guides: [] },
     ]);
 
     try {
       const events = api.sendMessage(journalist, embedId, content, currentLanguage());
       for await (const { event, data } of events) {
         if (event === "guide")
-          updateModelTurn((t) => ({ ...t, guides: [...(t.guides ?? []), data.name] }));
+          updateModelTurn((t) => ({ ...t, guides: [...t.guides, data.name] }));
         else if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
         else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
@@ -108,25 +107,20 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
       <section className="chat card">
         <div className="chat-head">
           <h2>{embed.title}</h2>
-          <label className="embed-language" title={t("editor.embedLanguageHint")}>
+          <span className="embed-language" title={t("editor.embedLanguageHint")}>
             {t("editor.embedLanguage")}
-            <select
+            <LanguageSelect
               value={embed.embed_language}
+              onChange={changeEmbedLanguage}
+              label={t("editor.embedLanguage")}
               disabled={streaming}
-              onChange={(e) => changeEmbedLanguage(e.target.value as Language)}
-            >
-              {LANGUAGES.map((language) => (
-                <option key={language} value={language}>
-                  {LANGUAGE_NAMES[language]}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </span>
         </div>
         <ol className="turns" ref={turnList}>
           {turns.map((turn, i) => (
             <li key={i} className={`turn ${turn.role}`}>
-              {turn.guides?.map((guide, g) => (
+              {turn.guides.map((guide, g) => (
                 <p key={g} className="status">
                   {t("editor.readingGuide", { name: t(`guides.${guide}`, { defaultValue: guide }) })}
                 </p>

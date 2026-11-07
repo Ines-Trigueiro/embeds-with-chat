@@ -2,14 +2,20 @@ import { useTranslation } from "react-i18next";
 
 import { changeLanguage, currentLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from "./i18n";
 
-/** The journalist's language: the UI and the model's chat replies follow it. */
-export function LanguagePicker() {
-  const { t } = useTranslation();
+interface Props {
+  value: Language;
+  onChange: (language: Language) => void;
+  label: string;
+  disabled?: boolean;
+}
+
+export function LanguageSelect({ value, onChange, label, disabled }: Props) {
   return (
     <select
-      aria-label={t("app.language")}
-      value={currentLanguage()}
-      onChange={(e) => changeLanguage(e.target.value as Language)}
+      aria-label={label}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as Language)}
     >
       {LANGUAGES.map((language) => (
         <option key={language} value={language}>
@@ -18,4 +24,10 @@ export function LanguagePicker() {
       ))}
     </select>
   );
+}
+
+/** The journalist's language: the UI and the model's chat replies follow it. */
+export function LanguagePicker() {
+  const { t } = useTranslation();
+  return <LanguageSelect value={currentLanguage()} onChange={changeLanguage} label={t("app.language")} />;
 }

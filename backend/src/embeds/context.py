@@ -11,10 +11,10 @@ from embeds.store import Message, Version
 
 
 def turn_context(
-    system: str, history: list[Message], latest: Version | None, request: str
+    system: str, conversation: list[Message], latest: Version | None, request: str
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = [SystemMessage(system)]
-    for message in history:
+    for message in conversation:
         if message.role == "journalist":
             messages.append(HumanMessage(message.text))
         else:

@@ -1,6 +1,8 @@
 // Thin client for the editor API. Every request carries the journalist's name;
 // there is no real authentication (see the README).
 
+import type { Language } from "./i18n";
+
 const JOURNALIST_KEY = "embeds.journalist";
 
 export function storedJournalist(): string | null {
@@ -27,8 +29,6 @@ export function forgetJournalist(): void {
   }
 }
 
-import type { Language } from "./i18n";
-
 export interface Embed {
   id: string;
   title: string;
@@ -42,14 +42,21 @@ export interface Version {
   preview_url: string;
   published: boolean;
   /** Pinned to this version; only once it is published. */
-  embed_url: string | null;
-  snippet: string | null;
+  delivery: Delivery | null;
+}
+
+/** What the journalist pastes into an article. */
+export interface Delivery {
+  snippet: string;
+  embed_url: string;
 }
 
 export interface Message {
   role: "journalist" | "model";
   text: string;
   version_number: number | null;
+  /** Guides the model read for this reply. */
+  guides: string[];
 }
 
 export interface OpenedEmbed extends Embed {
@@ -57,9 +64,8 @@ export interface OpenedEmbed extends Embed {
   versions: Version[];
   latest_version: Version | null;
   progress_frame_url: string;
-  /** Follow the newest published version; only once something is published. */
-  embed_url: string | null;
-  snippet: string | null;
+  /** Follows the newest published version; once one exists. */
+  delivery: Delivery | null;
 }
 
 /** Server-sent events from one chat turn; see the backend's chat module. */

@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, Tool
 
 from embeds.context import turn_context
 from embeds.guides import LOAD_GUIDE_TOOL, base_guide, load_guide
-from embeds.languages import Language, language_instructions, with_document_language
+from embeds.languages import Language, with_document_language
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
 from embeds.store import Embed, Store, Version
 
@@ -38,15 +38,18 @@ async def chat_turn(
     embed_origin: str,
 ) -> AsyncIterator[ChatEvent]:
     embed_id = embed.id
-    history = store.messages_of(embed_id)
+    conversation = store.messages_of(embed_id)
     latest = store.latest_version(embed_id)
-    system = base_guide(embed_origin) + "\n" + language_instructions(chat_language, embed.embed_language)
-    messages = turn_context(system, history, latest, content)
+    system = base_guide(embed_origin, chat_language, embed.embed_language)
+    messages = turn_context(system, conversation, latest, content)
     store.add_message(embed_id, "journalist", content)
 
     stream = ReplyStream()
+    guides: list[str] = []  # Kept with the reply, so the chat still shows them after a reload.
     try:
         async for event in _stream_reply(model, messages, stream):
+            if event[0] == "guide" and isinstance(event[1], dict):
+                guides.append(str(event[1]["name"]))
             yield event
         reply = parse_reply(stream.raw)
     except ReplyError as exc:
@@ -57,14 +60,15 @@ async def chat_turn(
     else:
         html = with_document_language(reply.html, embed.embed_language) if reply.html else None
         version = store.add_version(embed_id, html) if html else None
-        store.add_message(embed_id, "model", reply.text, version.number if version else None)
+        number = version.number if version else None
+        store.add_message(embed_id, "model", reply.text, number, tuple(guides))
         if version:
             yield "version", version
         yield "done", {"text": reply.text}
         return
 
     error, text = failure
-    store.add_message(embed_id, "model", text)
+    store.add_message(embed_id, "model", text, guides=tuple(guides))
     yield "error", {"message": error}
     yield "done", {"text": text}
 

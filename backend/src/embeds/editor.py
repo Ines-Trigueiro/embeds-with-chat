@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Self
 from urllib.parse import unquote
@@ -14,14 +15,12 @@ from pydantic import BaseModel, Field
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
-from embeds.delivery import embed_url, snippet, test_article_page
+from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
 from embeds.languages import Language
 from embeds.previews import Previews
 from embeds.store import Embed, Message, Role, Store, Version
 
 STATIC_DIR = Path(__file__).parent / "static"
-
-
 
 def journalist_name(
     x_journalist: Annotated[str, Header(min_length=1, max_length=512)],
@@ -69,24 +68,35 @@ class NewMessage(BaseModel):
     language: Language = "nb"  # The journalist's chat language.
 
 
+class Delivery(BaseModel):
+    """What the journalist pastes into an article."""
+
+    snippet: str
+    embed_url: str
+
+
 class VersionOut(BaseModel):
     number: int
     created_at: str
     preview_url: str
     published: bool
-    # Pinned to this version; only once it is published.
-    embed_url: str | None
-    snippet: str | None
+    delivery: Delivery | None  # Pinned to this version; only once it is published.
 
 
 class MessageOut(BaseModel):
     role: Role
     text: str
     version_number: int | None
+    guides: list[str]
 
     @classmethod
     def of(cls, message: Message) -> Self:
-        return cls(role=message.role, text=message.text, version_number=message.version_number)
+        return cls(
+            role=message.role,
+            text=message.text,
+            version_number=message.version_number,
+            guides=list(message.guides),
+        )
 
 
 class OpenedEmbed(EmbedOut):
@@ -94,9 +104,7 @@ class OpenedEmbed(EmbedOut):
     versions: list[VersionOut]
     latest_version: VersionOut | None
     progress_frame_url: str
-    # Follow the newest published version; only once something is published.
-    embed_url: str | None
-    snippet: str | None
+    delivery: Delivery | None  # Follows the newest published version; once one exists.
 
 
 def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
@@ -106,6 +114,12 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     origin = settings.embed_origin
 
+    def delivery(embed_id: str, number: int | None = None) -> Delivery:
+        return Delivery(
+            snippet=snippet(origin, embed_id, number),
+            embed_url=embed_url(origin, embed_id, number),
+        )
+
     def version_out(version: Version, published: bool) -> VersionOut:
         embed_id, number = version.embed_id, version.number
         return VersionOut(
@@ -113,8 +127,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             created_at=version.created_at,
             preview_url=previews.url(embed_id, number),
             published=published,
-            embed_url=embed_url(origin, embed_id, number) if published else None,
-            snippet=snippet(origin, embed_id, number) if published else None,
+            delivery=delivery(embed_id, number) if published else None,
         )
 
     def opened(embed: Embed) -> OpenedEmbed:
@@ -126,8 +139,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             versions=versions,
             latest_version=versions[-1] if versions else None,
             progress_frame_url=f"{origin}/progress-frame",
-            embed_url=embed_url(origin, embed.id) if published else None,
-            snippet=snippet(origin, embed.id) if published else None,
+            delivery=delivery(embed.id) if published else None,
         )
 
     def owned_embed(embed_id: str, journalist: str) -> Embed:
@@ -158,9 +170,9 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.patch("/api/embeds/{embed_id}")
     def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:
-        owned_embed(embed_id, journalist)
+        embed = owned_embed(embed_id, journalist)
         store.set_embed_language(embed_id, body.embed_language)
-        return EmbedOut.of(owned_embed(embed_id, journalist))
+        return EmbedOut.of(replace(embed, embed_language=body.embed_language))
 
     @app.post("/api/embeds/{embed_id}/messages")
     def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
@@ -185,7 +197,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.get("/test-article", response_class=HTMLResponse)
     def test_article(
-        embed: Annotated[str, Query(pattern=r"^[A-Za-z0-9_-]{1,64}$")],
+        embed: Annotated[str, Query(pattern=EMBED_ID.pattern)],
         version: Annotated[int | None, Query(ge=1)] = None,
     ) -> str:
         """A stand-in article page that shows an embed through its Snippet."""

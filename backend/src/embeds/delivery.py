@@ -16,7 +16,7 @@ RESIZE_SCRIPT = """<script>
 (() => {
   // Injected by the embed origin: tells the article page how tall this embed is.
   const report = () => window.parent.postMessage(
-    { type: "embed-resize", height: Math.ceil(document.documentElement.getBoundingClientRect().height) },
+    { type: "resize", height: Math.ceil(document.documentElement.getBoundingClientRect().height) },
     "*",
   );
   const observer = new ResizeObserver(report);
@@ -66,7 +66,7 @@ _LOADER = """(() => {
 
     const id = script.dataset.embed || "";
     const version = script.dataset.version;
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || (version && !/^[0-9]+$/.test(version))) {
+    if (!__EMBED_ID__.test(id) || (version && !/^[0-9]+$/.test(version))) {
       console.warn("Embed snippet has an invalid data-embed or data-version", script);
       continue;
     }
@@ -86,7 +86,7 @@ _LOADER = """(() => {
       // Only this iframe may resize this iframe; its origin is opaque, so check the source.
       if (event.source !== frame.contentWindow) return;
       const data = event.data;
-      if (!data || data.type !== "embed-resize" || !Number.isFinite(data.height)) return;
+      if (!data || data.type !== "resize" || !Number.isFinite(data.height)) return;
       const height = Math.min(Math.max(Math.ceil(data.height), MIN_HEIGHT), MAX_HEIGHT);
       frame.style.height = height + "px";
     });
@@ -96,7 +96,9 @@ _LOADER = """(() => {
 
 
 def loader_js(embed_origin: str) -> str:
-    return _LOADER.replace("__EMBED_ORIGIN__", json.dumps(embed_origin))
+    return _LOADER.replace("__EMBED_ORIGIN__", json.dumps(embed_origin)).replace(
+        "__EMBED_ID__", f"/{EMBED_ID.pattern}/"
+    )
 
 
 def test_article_page(embed_origin: str, embed_id: str, number: int | None) -> str:

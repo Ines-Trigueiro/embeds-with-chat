@@ -70,3 +70,15 @@ def test_a_model_that_keeps_loading_guides_is_stopped(
     assert len(only(events, "error")) == 1
     assert only(events, "version") == []
     assert len(fake_model.received) <= 5
+
+
+def test_the_guides_read_are_kept_with_the_reply(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    fake_model.replies += [load_guide("chart"), f"Grafen er klar.\n```html\n{doc('g')}\n```"]
+    embed_id = new_embed(editor)
+    chat(editor, embed_id, "Lag en graf")
+
+    opened = editor.get(f"/api/embeds/{embed_id}", headers={"X-Journalist": "kari"}).json()
+
+    assert [m["guides"] for m in opened["messages"]] == [[], ["chart"]]

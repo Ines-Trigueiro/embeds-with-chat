@@ -4,6 +4,7 @@ Plain sqlite3 on purpose: the schema is small, and both origins open the same
 file, so there is no ORM layer to keep in sync between them.
 """
 
+import json
 import secrets
 import sqlite3
 from collections.abc import Iterator
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS messages (
     text            TEXT NOT NULL,
     version_number  INTEGER,
     created_at      TEXT NOT NULL,
+    guides          TEXT NOT NULL DEFAULT '[]',  -- JSON list of the guides the model read
     PRIMARY KEY (embed_id, seq)
 );
 """
@@ -60,6 +62,7 @@ CREATE TABLE IF NOT EXISTS messages (
 # Columns added after the first release, for databases created before them.
 MIGRATIONS = {
     ("embeds", "embed_language"): "ALTER TABLE embeds ADD COLUMN embed_language TEXT NOT NULL DEFAULT 'nb'",
+    ("messages", "guides"): "ALTER TABLE messages ADD COLUMN guides TEXT NOT NULL DEFAULT '[]'",
 }
 
 
@@ -88,6 +91,7 @@ class Message:
     text: str
     version_number: int | None
     created_at: str
+    guides: tuple[str, ...] = ()
 
 
 def _now() -> str:
@@ -152,25 +156,34 @@ class Store:
         return Embed(**row) if row else None
 
     def add_message(
-        self, embed_id: str, role: Role, text: str, version_number: int | None = None
+        self,
+        embed_id: str,
+        role: Role,
+        text: str,
+        version_number: int | None = None,
+        guides: tuple[str, ...] = (),
     ) -> Message:
         with self._connect() as db:
             (seq,) = db.execute(
                 "SELECT COALESCE(MAX(seq), 0) + 1 FROM messages WHERE embed_id = ?", (embed_id,)
             ).fetchone()
-            message = Message(embed_id, seq, role, text, version_number, _now())
+            message = Message(embed_id, seq, role, text, version_number, _now(), guides)
             db.execute(
-                "INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?)",
-                (embed_id, seq, role, text, version_number, message.created_at),
+                "INSERT INTO messages (embed_id, seq, role, text, version_number, created_at, guides)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (embed_id, seq, role, text, version_number, message.created_at, json.dumps(guides)),
             )
         return message
 
     def messages_of(self, embed_id: str) -> list[Message]:
+        """The embed's conversation, oldest first."""
         with self._connect() as db:
             rows = db.execute(
                 "SELECT * FROM messages WHERE embed_id = ? ORDER BY seq", (embed_id,)
             ).fetchall()
-        return [Message(**row) for row in rows]
+        return [
+            Message(**{**dict(row), "guides": tuple(json.loads(row["guides"]))}) for row in rows
+        ]
 
     def add_version(self, embed_id: str, html: str) -> Version:
         with self._connect() as db:
@@ -219,18 +232,18 @@ class Store:
             ).fetchall()
         return {row["number"] for row in rows}
 
-    def published_version(self, embed_id: str, number: int | None = None) -> Version | None:
-        """A published version: the given one, or the newest published one."""
+    def newest_published_version(self, embed_id: str) -> Version | None:
+        return self._published(embed_id, "ORDER BY v.number DESC LIMIT 1")
+
+    def published_version(self, embed_id: str, number: int) -> Version | None:
+        """The version, but only if it is published."""
+        return self._published(embed_id, "AND v.number = ?", number)
+
+    def _published(self, embed_id: str, condition: str, *args: int) -> Version | None:
         query = (
             "SELECT v.* FROM versions v JOIN publications p USING (embed_id, number)"
-            " WHERE v.embed_id = ?"
+            f" WHERE v.embed_id = ? {condition}"
         )
-        if number is None:
-            args: tuple[str | int, ...] = (embed_id,)
-            query += " ORDER BY v.number DESC LIMIT 1"
-        else:
-            args = (embed_id, number)
-            query += " AND v.number = ?"
         with self._connect() as db:
-            row = db.execute(query, args).fetchone()
+            row = db.execute(query, (embed_id, *args)).fetchone()
         return Version(**row) if row else None

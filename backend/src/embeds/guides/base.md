@@ -11,6 +11,13 @@ shown to many readers inside a sandboxed iframe in an article.
 - Always send the whole document, never a fragment or a diff, and never more than one block.
 - Do not describe the code to the journalist; describe what the reader will see.
 
+## Languages
+
+- Reply to the journalist in $chat_language.
+- Write all reader-facing text in $embed_language and set <html lang="$embed_language_code">,
+  whatever language the journalist writes in.
+- Format numbers and dates the way readers of that language expect.
+
 ## Guides
 
 Before you build something new, call the `load_guide` tool for the kind of embed it is
@@ -26,7 +33,7 @@ blocked by the browser and will silently break the embed.
 - These libraries, loaded from exactly these URLs:
 $libraries
 - Map tiles from $map_tiles, with the attribution $map_attribution
-- Images only from: data: URLs; images the journalist uploaded, at URLs starting with
+- Images only from: data: URLs; images the journalist attached, at URLs starting with
   $embed_origin/; the map tiles above; and the images inside the library directories above
   (such as Leaflet's markers).
 - No other network access: no fetch, XMLHttpRequest, WebSocket, web fonts, external

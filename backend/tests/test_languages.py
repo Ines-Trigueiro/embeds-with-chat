@@ -65,6 +65,7 @@ def test_chat_language_and_embed_language_both_reach_the_prompt(
     chat(editor, embed_id, "Make a quiz", language="en")
 
     system = fake_model.received[0][0].text
+    assert "$" not in system  # every placeholder in the base guide was filled in
     assert "Reply to the journalist in English" in system
     assert "reader-facing text in Danish" in system
     assert 'lang="da"' in system

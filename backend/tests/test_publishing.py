@@ -64,8 +64,8 @@ def test_served_embeds_report_their_height_to_the_article(
 
     served = embed_origin.get(f"/e/{embed_id}").text
 
-    assert '"embed-resize"' in served
-    assert served.index('"embed-resize"') < served.lower().rindex("</body>")
+    assert 'type: "resize"' in served
+    assert served.index('type: "resize"') < served.lower().rindex("</body>")
 
 
 def test_the_journalist_gets_a_snippet_and_embed_urls_after_publishing(
@@ -76,13 +76,17 @@ def test_the_journalist_gets_a_snippet_and_embed_urls_after_publishing(
     opened = publish(editor, embed_id, 1).json()
 
     loader = '<script src="http://embeds.test/loader.js"'
-    assert opened["snippet"] == f'{loader} data-embed="{embed_id}" async></script>'
-    assert opened["embed_url"] == f"http://embeds.test/e/{embed_id}"
+    assert opened["delivery"] == {
+        "snippet": f'{loader} data-embed="{embed_id}" async></script>',
+        "embed_url": f"http://embeds.test/e/{embed_id}",
+    }
     [one, two] = opened["versions"]
     assert one["published"] is True
-    assert one["snippet"] == f'{loader} data-embed="{embed_id}" data-version="1" async></script>'
-    assert one["embed_url"] == f"http://embeds.test/e/{embed_id}/v/1"
-    assert (two["published"], two["snippet"], two["embed_url"]) == (False, None, None)
+    assert one["delivery"] == {
+        "snippet": f'{loader} data-embed="{embed_id}" data-version="1" async></script>',
+        "embed_url": f"http://embeds.test/e/{embed_id}/v/1",
+    }
+    assert (two["published"], two["delivery"]) == (False, None)
 
 
 def test_before_anything_is_published_there_is_no_snippet(
@@ -92,7 +96,7 @@ def test_before_anything_is_published_there_is_no_snippet(
 
     opened = editor.get(f"/api/embeds/{embed_id}", headers=KARI).json()
 
-    assert (opened["snippet"], opened["embed_url"]) == (None, None)
+    assert opened["delivery"] is None
 
 
 def test_only_the_owner_can_publish_and_only_existing_versions(
@@ -125,6 +129,7 @@ def test_loader_creates_a_sandboxed_iframe_and_trusts_only_its_own_iframe(
     assert 'setAttribute("sandbox", "allow-scripts")' in loader.text
     assert "allow-same-origin" not in loader.text
     assert "event.source !== frame.contentWindow" in loader.text
+    assert 'data.type !== "resize"' in loader.text
     assert '"http://embeds.test"' in loader.text
 
 
