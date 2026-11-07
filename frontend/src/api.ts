@@ -54,6 +54,7 @@ export interface OpenedEmbed extends Embed {
 
 /** Server-sent events from one chat turn; see the backend's chat module. */
 export type ChatEvent =
+  | { event: "guide"; data: { name: string } }
   | { event: "text"; data: { delta: string } }
   | { event: "progress"; data: { html: string } }
   | { event: "version"; data: Version }

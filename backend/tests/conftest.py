@@ -7,13 +7,17 @@ exercised through the HTTP interface of the two apps.
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from langchain_core.callbacks import CallbackManagerForLLMRun
-from langchain_core.language_models import BaseChatModel
+from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.messages.tool import tool_call_chunk
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
 from embeds.config import Settings
@@ -38,16 +42,27 @@ class FakeChatModel(BaseChatModel):
     the way a real model's tokens split them.
     """
 
-    replies: list[str | Exception] = []
+    replies: list[str | AIMessage | Exception] = []
     received: list[list[BaseMessage]] = []
+    bound_tools: list[Any] = []
     chunk_size: int = 3
 
     @property
     def _llm_type(self) -> str:
         return "fake"
 
-    def _next_reply(self, messages: list[BaseMessage]) -> str:
-        self.received.append(messages)
+    def bind_tools(
+        self,
+        tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool],
+        *,
+        tool_choice: str | None = None,
+        **kwargs: Any,
+    ) -> Runnable[LanguageModelInput, AIMessage]:
+        self.bound_tools = list(tools)
+        return self
+
+    def _next_reply(self, messages: list[BaseMessage]) -> str | AIMessage:
+        self.received.append(list(messages))
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
@@ -61,7 +76,8 @@ class FakeChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         reply = self._next_reply(messages)
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=reply))])
+        message = reply if isinstance(reply, AIMessage) else AIMessage(content=reply)
+        return ChatResult(generations=[ChatGeneration(message=message)])
 
     def _stream(
         self,
@@ -71,6 +87,15 @@ class FakeChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
         reply = self._next_reply(messages)
+        if isinstance(reply, AIMessage):  # A tool call: one chunk, like a real model's final delta.
+            tool_call_chunks = [
+                tool_call_chunk(name=c["name"], args=json.dumps(c["args"]), id=c["id"], index=i)
+                for i, c in enumerate(reply.tool_calls)
+            ]
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(content=reply.text, tool_call_chunks=tool_call_chunks)
+            )
+            return
         for start in range(0, len(reply), self.chunk_size):
             chunk = reply[start : start + self.chunk_size]
             yield ChatGenerationChunk(message=AIMessageChunk(content=chunk))
@@ -92,6 +117,13 @@ def editor(settings: Settings, fake_model: FakeChatModel) -> Iterator[TestClient
 def embed_origin(settings: Settings) -> Iterator[TestClient]:
     with TestClient(create_embed_app(settings)) as client:
         yield client
+
+
+def load_guide(name: str, call_id: str = "call-1") -> AIMessage:
+    """A scripted model reply that asks for a guide."""
+    return AIMessage(
+        content="", tool_calls=[{"name": "load_guide", "args": {"name": name}, "id": call_id}]
+    )
 
 
 def as_journalist(name: str) -> dict[str, str]:

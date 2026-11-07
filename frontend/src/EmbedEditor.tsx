@@ -5,6 +5,8 @@ import { Preview, type Device } from "./Preview";
 
 interface Turn extends Message {
   error?: string;
+  /** Guides the model read for this reply; only known while it streams. */
+  guides?: string[];
 }
 
 export function EmbedEditor({ journalist, embedId }: { journalist: string; embedId: string }) {
@@ -53,7 +55,9 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
 
     try {
       for await (const { event, data } of api.sendMessage(journalist, embedId, content)) {
-        if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
+        if (event === "guide")
+          updateModelTurn((t) => ({ ...t, guides: [...(t.guides ?? []), data.name] }));
+        else if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
         else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
           setVersions((current) => [...current, data]);
@@ -83,6 +87,11 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
         <ol className="turns" ref={turnList}>
           {turns.map((turn, i) => (
             <li key={i} className={`turn ${turn.role}`}>
+              {turn.guides?.map((guide, g) => (
+                <p key={g} className="status">
+                  Reading guide: {guide}…
+                </p>
+              ))}
               {turn.text || (streaming && i === turns.length - 1 ? "…" : "")}
               {turn.version_number !== null && (
                 <button className="badge" onClick={() => setShownNumber(turn.version_number)}>
