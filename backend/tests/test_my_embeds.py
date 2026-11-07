@@ -1,9 +1,8 @@
 from urllib.parse import quote
 
 from fastapi.testclient import TestClient
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 
-from conftest import as_journalist
+from conftest import FakeChatModel, as_journalist
 from embeds.config import Settings
 from embeds.editor import create_editor_app
 
@@ -46,7 +45,7 @@ def test_embed_ids_are_random_not_sequential(editor: TestClient) -> None:
 
 
 def test_embeds_survive_an_app_restart(
-    settings: Settings, fake_model: GenericFakeChatModel
+    settings: Settings, fake_model: FakeChatModel
 ) -> None:
     with TestClient(create_editor_app(settings, chat_model=fake_model)) as first:
         first.post("/api/embeds", json={"title": "Tidslinje"}, headers=as_journalist("kari"))
