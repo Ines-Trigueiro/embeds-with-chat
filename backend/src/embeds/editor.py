@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from embeds.chat import chat_turn
 from embeds.config import Settings
 from embeds.datasets import DatasetError, ParsedDataset, is_dataset_file, parse_dataset
+from embeds.images import image_type, image_url
 from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
 from embeds.languages import Language
 from embeds.previews import Previews
@@ -126,15 +127,18 @@ class AttachmentOut(BaseModel):
     created_at: str
     rows: int | None = None  # Datasets only.
     columns: list[ColumnOut] | None = None  # Datasets only.
+    url: str | None = None  # Images only: where the embed can show it.
 
     @classmethod
-    def of(cls, attachment: Attachment) -> Self:
+    def of(cls, attachment: Attachment, embed_origin: str) -> Self:
         out = cls(
             id=attachment.id,
             kind=attachment.kind,
             name=attachment.name,
             created_at=attachment.created_at,
         )
+        if attachment.kind == "image":
+            out.url = image_url(embed_origin, attachment.embed_id, attachment.id)
         if attachment.kind == "dataset":
             dataset = ParsedDataset.from_bytes(attachment.content)
             out.rows = len(dataset.rows)
@@ -181,7 +185,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         return OpenedEmbed(
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed.id)],
-            attachments=[AttachmentOut.of(a) for a in store.attachments_of(embed.id)],
+            attachments=[AttachmentOut.of(a, origin) for a in store.attachments_of(embed.id)],
             versions=versions,
             latest_version=versions[-1] if versions else None,
             progress_frame_url=f"{origin}/progress-frame",
@@ -226,14 +230,20 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
     async def attach(embed_id: str, file: UploadFile, journalist: Journalist) -> AttachmentOut:
-        """Attach a spreadsheet (a Dataset). A new upload is always a new attachment."""
+        """Attach a spreadsheet (a Dataset) or an Image. A new upload is always a new attachment."""
         owned_embed(embed_id, journalist)
         name = (file.filename or "attachment").strip()[:200]
         content = await file.read(MAX_UPLOAD_BYTES + 1)
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=422, detail="The file is larger than 5 MB.")
+        if media_type := image_type(content):
+            image = store.add_attachment(embed_id, "image", name, media_type, content)
+            return AttachmentOut.of(image, origin)
         if not is_dataset_file(name):
-            raise HTTPException(status_code=422, detail="Attach a spreadsheet (.csv or .xlsx).")
+            raise HTTPException(
+                status_code=422,
+                detail="Attach a spreadsheet (.csv, .xlsx) or an image (PNG, JPEG, GIF, WebP).",
+            )
         try:
             dataset = parse_dataset(name, content)
         except DatasetError as exc:
@@ -241,7 +251,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         attachment = store.add_attachment(
             embed_id, "dataset", name, "application/json", dataset.to_bytes()
         )
-        return AttachmentOut.of(attachment)
+        return AttachmentOut.of(attachment, origin)
 
     @app.patch("/api/embeds/{embed_id}")
     def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:

@@ -8,7 +8,11 @@ Datasets are described (schema and a sample), never included in full (ADR 0002).
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
+import base64
+from typing import Any
+
 from embeds.datasets import ParsedDataset, describe_for_model, without_dataset_contents
+from embeds.images import ImageForModel
 from embeds.store import Message, Version
 
 Datasets = dict[str, tuple[str, ParsedDataset]]  # id -> (file name, dataset)
@@ -20,6 +24,7 @@ def turn_context(
     latest: Version | None,
     request: str,
     datasets: Datasets | None = None,
+    images: list[ImageForModel] | None = None,
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = [SystemMessage(system)]
     for message in conversation:
@@ -27,12 +32,28 @@ def turn_context(
             messages.append(HumanMessage(message.text))
         else:
             messages.append(AIMessage(message.text))
-    messages.append(HumanMessage(_request_with_context(request, latest, datasets or {})))
+    text = _request_with_context(request, latest, datasets or {}, images or [])
+    if not images:
+        messages.append(HumanMessage(text))
+        return messages
+    # Vision input: the images themselves, after the text that says what each one is.
+    content: list[str | dict[str, Any]] = [{"type": "text", "text": text}]
+    for image in images:
+        data = base64.b64encode(image.content).decode()
+        content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{image.media_type};base64,{data}"}}
+        )
+    messages.append(HumanMessage(content=content))
     return messages
 
 
-def _request_with_context(request: str, latest: Version | None, datasets: Datasets) -> str:
+def _request_with_context(
+    request: str, latest: Version | None, datasets: Datasets, images: list[ImageForModel]
+) -> str:
     parts = []
+    if images:
+        listed = "\n".join(f'- Image "{i.name}", at {i.url}' for i in images)
+        parts.append(f"Images the journalist has attached, shown in this order:\n{listed}")
     if datasets:
         described = "\n".join(
             describe_for_model(dataset_id, name, dataset)

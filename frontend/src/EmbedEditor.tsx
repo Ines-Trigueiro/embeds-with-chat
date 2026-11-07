@@ -171,7 +171,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             ref={fileInput}
             type="file"
             hidden
-            accept=".csv,.xlsx"
+            accept=".csv,.xlsx,image/png,image/jpeg,image/gif,image/webp"
             onChange={(e) => e.target.files?.[0] && attach(e.target.files[0])}
           />
           <button

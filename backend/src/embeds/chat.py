@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, Tool
 from embeds.context import turn_context
 from embeds.datasets import ParsedDataset, inject_datasets
 from embeds.guides import LOAD_GUIDE_TOOL, base_guide, load_guide
+from embeds.images import MAX_IMAGES_FOR_MODEL, ImageForModel, image_url
 from embeds.languages import Language, with_document_language
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
 from embeds.store import Embed, Store, Version
@@ -46,8 +47,13 @@ async def chat_turn(
         for a in store.attachments_of(embed_id)
         if a.kind == "dataset"
     }
+    images = [
+        ImageForModel(a.id, a.name, image_url(embed_origin, embed_id, a.id), a.media_type, a.content)
+        for a in store.attachments_of(embed_id)
+        if a.kind == "image"
+    ][-MAX_IMAGES_FOR_MODEL:]
     system = base_guide(embed_origin, chat_language, embed.embed_language)
-    messages = turn_context(system, conversation, latest, content, datasets)
+    messages = turn_context(system, conversation, latest, content, datasets, images)
     store.add_message(embed_id, "journalist", content)
 
     stream = ReplyStream()

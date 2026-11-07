@@ -42,6 +42,22 @@ def create_embed_app(settings: Settings) -> FastAPI:
         """One version, pinned; only if it is published."""
         return serve(store.published_version(embed_id, number))
 
+    @app.get("/attachments/{embed_id}/{attachment_id}")
+    def attached_image(embed_id: str, attachment_id: str) -> Response:
+        """An image the journalist attached, for embeds to show. Never anything but an image."""
+        attachment = store.attachment(embed_id, attachment_id)
+        if attachment is None or attachment.kind != "image":
+            raise HTTPException(status_code=404)
+        return Response(
+            attachment.content,
+            media_type=attachment.media_type,
+            headers={
+                "Content-Security-Policy": "default-src 'none'; sandbox",
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
+        )
+
     @app.get("/loader.js")
     def loader_script() -> Response:
         return Response(

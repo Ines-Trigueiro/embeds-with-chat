@@ -76,7 +76,7 @@ const en = {
   },
   attachments: {
     heading: "Attachments",
-    attach: "Attach a spreadsheet (.csv, .xlsx)",
+    attach: "Attach a spreadsheet (.csv, .xlsx) or an image",
     rows_one: "{{count}} row",
     rows_other: "{{count}} rows",
   },
@@ -154,7 +154,7 @@ const nb: Translations = {
   },
   attachments: {
     heading: "Vedlegg",
-    attach: "Legg ved et regneark (.csv, .xlsx)",
+    attach: "Legg ved et regneark (.csv, .xlsx) eller et bilde",
     rows_one: "{{count}} rad",
     rows_other: "{{count}} rader",
   },
@@ -230,7 +230,7 @@ const da: Translations = {
   },
   attachments: {
     heading: "Vedhæftninger",
-    attach: "Vedhæft et regneark (.csv, .xlsx)",
+    attach: "Vedhæft et regneark (.csv, .xlsx) eller et billede",
     rows_one: "{{count}} række",
     rows_other: "{{count}} rækker",
   },

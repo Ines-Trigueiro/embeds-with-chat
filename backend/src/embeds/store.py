@@ -286,6 +286,13 @@ class Store:
             )
         return attachment
 
+    def attachment(self, embed_id: str, attachment_id: str) -> Attachment | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT * FROM attachments WHERE embed_id = ? AND id = ?", (embed_id, attachment_id)
+            ).fetchone()
+        return Attachment(**row) if row else None
+
     def attachments_of(self, embed_id: str) -> list[Attachment]:
         with self._connect() as db:
             rows = db.execute(
