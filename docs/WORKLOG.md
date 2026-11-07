@@ -27,3 +27,15 @@ Where it pushed back on me:
   - **A `.gitignore` rule didn't match.** The path for the built frontend was anchored at the wrong place.
 - The review also caught code drifting from the glossary ("user" instead of "Journalist"). I had it rename, and add *Editor origin* and *Embed origin* to the glossary.
 - I kept the unused hooks for the chat model and settings that the review flagged as speculative, because ticket #2 uses them straight away.
+
+## 3. Ticket #2: chat, versions and the sandboxed preview
+
+- The assistant proposed two designs the ticket hadn't specified, and I accepted both:
+  - **Signed preview URLs**, so the journalist can preview versions that aren't published from the embed origin.
+  - **A separate frame on the embed origin for work in progress**, so half-written HTML runs under the same CSP as finished versions.
+- The two-axis review then found real problems in exactly those designs:
+  - **Preview URLs never expired.** A leaked URL would have exposed a version that was never published, permanently. Fixed by signing an expiry, and I had ADR 0003 amended rather than silently contradicted.
+  - **The sandbox only held inside an iframe.** Opened directly in a tab, the pages ran without it. Fixed by adding `sandbox` to the CSP header itself.
+  - **The prompt and the CSP disagreed about images**, despite coming from "one source". Fixed with a test that every CSP source appears in the prompt.
+- **Vocabulary:** the review flagged "draft", a word the glossary avoids. We named the concept *Work in progress* and renamed it everywhere.
+- **First real run:** I set the local model to Claude Haiku 5.5 to keep costs down. The default stays Sonnet 5.5. The first real run produced a self-contained Norwegian calculator in about 8 seconds, with no external requests.
