@@ -6,6 +6,7 @@ import { currentLanguage, type Language } from "./i18n";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
 import { Findings } from "./Findings";
+import { Icon } from "./Icon";
 import { PublishPanel } from "./PublishPanel";
 
 interface Turn extends Message {
@@ -22,6 +23,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState("");
   const [device, setDevice] = useState<Device>("mobile");
+  const [pane, setPane] = useState<"chat" | "preview">("chat"); // Phones show one at a time.
   const [loadError, setLoadError] = useState<string | null>(null);
   const turnList = useRef<HTMLOListElement>(null);
 
@@ -38,7 +40,9 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   }, [journalist, embedId]);
 
   useEffect(() => {
-    turnList.current?.lastElementChild?.scrollIntoView({ block: "end" });
+    // Scroll only the conversation, never the page around it.
+    const list = turnList.current;
+    if (list) list.scrollTop = list.scrollHeight;
   }, [turns]);
 
   function updateModelTurn(update: (turn: Turn) => Turn) {
@@ -124,7 +128,21 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   if (!embed) return <p className="hint">{t("editor.loading")}</p>;
 
   return (
-    <div className="editor">
+    <div className={`editor show-${pane}`}>
+      <div className="pane-switch" role="tablist" aria-label={t("editor.panes")}>
+        {(["chat", "preview"] as const).map((p) => (
+          <button
+            key={p}
+            role="tab"
+            aria-selected={pane === p}
+            className={pane === p ? "on" : ""}
+            onClick={() => setPane(p)}
+          >
+            <Icon name={p === "chat" ? "chat" : "eye"} size={16} />
+            {t(`editor.pane.${p}`)}
+          </button>
+        ))}
+      </div>
       <section className="chat card">
         <div className="chat-head">
           <h2>{embed.title}</h2>
@@ -226,6 +244,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
               <span className="published">{t("publish.published")}</span>
             ) : (
               <button
+                className="primary"
                 disabled={streaming || blocked}
                 title={blocked ? t("quality.cannotPublish") : undefined}
                 onClick={() => publish(version)}
@@ -246,15 +265,20 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
             ))}
           </div>
         </div>
+        {version && !streaming && <Findings findings={version.findings} />}
+        {publishError && <p className="error">{publishError}</p>}
+        {embed.delivery && (
+          <details className="publish-details">
+            <summary>{t("publish.heading")}</summary>
+            <PublishPanel embed={embed} shown={version} />
+          </details>
+        )}
         <Preview
           versionUrl={version?.preview_url ?? null}
           progressFrameUrl={embed.progress_frame_url}
           progressHtml={progressHtml}
           device={device}
         />
-        {version && !streaming && <Findings findings={version.findings} />}
-        {publishError && <p className="error">{publishError}</p>}
-        <PublishPanel embed={embed} shown={version} />
       </section>
     </div>
   );

@@ -35,7 +35,7 @@ export function App() {
   }
 
   return (
-    <div className={embedId ? "shell wide" : "shell"}>
+    <div className="app">
       <header className="topbar">
         <h1>
           <a href="#/">{t("app.title")}</a>
@@ -54,7 +54,7 @@ export function App() {
           </button>
         </span>
       </header>
-      <main>
+      <main className={embedId ? "main fill" : "main"}>
         {embedId ? (
           <EmbedEditor key={embedId} journalist={journalist} embedId={embedId} />
         ) : (
