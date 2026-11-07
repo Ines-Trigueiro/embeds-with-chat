@@ -39,3 +39,27 @@ Where it pushed back on me:
   - **The prompt and the CSP disagreed about images**, despite coming from "one source". Fixed with a test that every CSP source appears in the prompt.
 - **Vocabulary:** the review flagged "draft", a word the glossary avoids. We named the concept *Work in progress* and renamed it everywhere.
 - **First real run:** I set the local model to Claude Haiku 5.5 to keep costs down. The default stays Sonnet 5.5. The first real run produced a self-contained Norwegian calculator in about 8 seconds, with no external requests.
+
+## 4. Tickets #3–#9: the rest of the core, and all three extensions
+
+- I asked the assistant to "implement all the unblocked tickets and fix what you think is needed". It did them one ticket at a time, each test-first at the agreed seams, with a commit per ticket and a two-axis review after each batch.
+- **What the reviews caught, and we fixed:**
+  - **The resize message type** didn't match the ticket's contract.
+  - **The guide status lines** were lost on reload.
+  - **The language rules** sat in code instead of the editable base guide.
+  - **A dataset cell containing `<!--`** would have broken the embed for readers, because the escape we used isn't valid JSON.
+  - **The quality check blocked ordinary data embeds.** It looked at the injected data as if it were the model's code.
+  - **Image URLs were only 48 bits**, short enough to guess.
+- **Deliberate deviations, recorded instead of hidden:**
+  - **ADR 0002 amendment:** one dataset marker per dataset instead of a single `embed-data` block.
+  - **Publishing behind the check in the browser test:** the test publishes a hostile embed past the quality check, because it exists to prove the sandbox holds even when something bad does get published.
+- **Proving the tests could fail:** for the browser isolation test, the assistant temporarily weakened the sandbox and confirmed the test caught the cookie leak, before trusting that it passes.
+- **Every feature was also tried against the real model (Claude Haiku 5.5):**
+  - It loaded the right guide.
+  - It kept Danish embed text while chatting in English.
+  - It used the dataset marker without retyping any figure.
+  - It placed an attached logo by its URL, and followed a sketch without embedding it.
+  - Screenshots in Chromium caught two layout problems the tests couldn't: a squeezed preview, and a clipped chart label. The clipped label led to a new rule in the chart guide.
+- **Where I accepted a limit rather than over-build:**
+  - The quality check can be fooled by obfuscated code. The CSP and sandbox are what protect readers.
+  - Nothing yet detects a model that retypes figures from the sample rows.
