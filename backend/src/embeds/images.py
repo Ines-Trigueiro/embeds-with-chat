@@ -32,7 +32,6 @@ def image_url(embed_origin: str, embed_id: str, attachment_id: str) -> str:
 
 @dataclass(frozen=True)
 class ImageForModel:
-    id: str
     name: str
     url: str
     media_type: str

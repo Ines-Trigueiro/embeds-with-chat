@@ -35,9 +35,13 @@ class Finding:
 
 
 def check(html: str, embed_origin: str) -> list[Finding]:
+    """Check the document as the model wrote it: pass it with dataset markers empty,
+    since a dataset's cells are data, not code (see `datasets.without_dataset_contents`)."""
     soup = BeautifulSoup(html, "html.parser")
+    allowed = allowed_url_prefixes(embed_origin)
     return [
-        *_external_resources(html, soup, allowed_url_prefixes(embed_origin)),
+        *_links(soup, allowed),
+        *_external_resources(html, soup, allowed),
         *_pattern("cookie_access", _COOKIE, html),
         *_pattern("page_access", _PAGE_ACCESS, html),
         *_form_submissions(soup),
@@ -57,8 +61,23 @@ def _tags(soup: BeautifulSoup, *names: str) -> list[Tag]:
     return [t for t in soup.find_all(names or True) if isinstance(t, Tag)]
 
 
+def _external_links(soup: BeautifulSoup, allowed: tuple[str, ...]) -> set[str]:
+    hrefs = (str(a.get("href", "")).strip() for a in _tags(soup, "a"))
+    return {h for h in hrefs if h.lower().startswith(("http:", "https:")) and not h.startswith(allowed)}
+
+
+def _links(soup: BeautifulSoup, allowed: tuple[str, ...]) -> list[Finding]:
+    """Links can't open anything from inside the sandbox; the source belongs in plain text."""
+    return [Finding("link", "block", url) for url in sorted(_external_links(soup, allowed))]
+
+
 def _external_resources(html: str, soup: BeautifulSoup, allowed: tuple[str, ...]) -> list[Finding]:
-    found: list[str] = [url for url in _ABSOLUTE_URL.findall(html) if not url.startswith(allowed)]
+    links = _external_links(soup, allowed)  # Reported by `_links` instead.
+    found: list[str] = [
+        url
+        for url in _ABSOLUTE_URL.findall(html)
+        if not url.startswith(allowed) and url not in links
+    ]
     for tag in _tags(soup):
         for attribute in _URL_ATTRIBUTES:
             value = tag.get(attribute)

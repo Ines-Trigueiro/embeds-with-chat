@@ -17,7 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, ToolMessage
 
 from embeds.context import turn_context
-from embeds.datasets import ParsedDataset, inject_datasets
+from embeds.datasets import DatasetAttachment, ParsedDataset, inject_datasets
 from embeds.guides import LOAD_GUIDE_TOOL, base_guide, load_guide
 from embeds.images import MAX_IMAGES_FOR_MODEL, ImageForModel, image_url
 from embeds.languages import Language, with_document_language
@@ -42,14 +42,15 @@ async def chat_turn(
     embed_id = embed.id
     conversation = store.messages_of(embed_id)
     latest = store.latest_version(embed_id)
-    datasets = {
-        a.id: (a.name, ParsedDataset.from_bytes(a.content))
-        for a in store.attachments_of(embed_id)
+    attachments = store.attachments_of(embed_id)
+    datasets = [
+        DatasetAttachment(a.id, a.name, ParsedDataset.from_bytes(a.content))
+        for a in attachments
         if a.kind == "dataset"
-    }
+    ]
     images = [
-        ImageForModel(a.id, a.name, image_url(embed_origin, embed_id, a.id), a.media_type, a.content)
-        for a in store.attachments_of(embed_id)
+        ImageForModel(a.name, image_url(embed_origin, embed_id, a.id), a.media_type, a.content)
+        for a in attachments
         if a.kind == "image"
     ][-MAX_IMAGES_FOR_MODEL:]
     system = base_guide(embed_origin, chat_language, embed.embed_language)
@@ -67,8 +68,7 @@ async def chat_turn(
         reply = parse_reply(stream.raw)
         if reply.html:
             # The figures go in here, from the file: never through the model (ADR 0002).
-            rows = {dataset_id: dataset for dataset_id, (_, dataset) in datasets.items()}
-            html = with_document_language(inject_datasets(reply.html, rows), embed.embed_language)
+            html = with_document_language(inject_datasets(reply.html, datasets), embed.embed_language)
     except ReplyError as exc:
         # Keep whatever the model said before the broken HTML, so the chat still reads well.
         failure = (str(exc), prose_before_html(stream.raw).strip() or str(exc))

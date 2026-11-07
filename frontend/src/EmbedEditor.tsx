@@ -80,6 +80,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   }
 
   const version = versions.find((v) => v.number === shownNumber) ?? null;
+  const blocked = version?.findings.some((f) => f.severity === "block") ?? false;
   const latestNumber = versions.length ? versions[versions.length - 1].number : null;
 
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -225,10 +226,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
               <span className="published">{t("publish.published")}</span>
             ) : (
               <button
-                disabled={streaming || version.findings.some((f) => f.severity === "block")}
-                title={
-                  version.findings.some((f) => f.severity === "block") ? t("quality.cannotPublish") : undefined
-                }
+                disabled={streaming || blocked}
+                title={blocked ? t("quality.cannotPublish") : undefined}
                 onClick={() => publish(version)}
               >
                 {t("publish.publish", { number: version.number })}

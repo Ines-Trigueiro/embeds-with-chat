@@ -92,3 +92,9 @@ def test_oversized_images_are_rejected(editor: TestClient) -> None:
 
 def test_unknown_attachments_are_not_found(embed_origin: TestClient) -> None:
     assert embed_origin.get("/attachments/nope/nope").status_code == 404
+
+
+def test_image_urls_cannot_be_guessed(editor: TestClient) -> None:
+    image = upload(editor, new_embed(editor), "logo.png", PNG).json()
+
+    assert len(image["id"]) >= 22  # at least 128 random bits

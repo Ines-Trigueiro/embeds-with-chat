@@ -37,6 +37,15 @@ class Column:
 
 
 @dataclass(frozen=True)
+class DatasetAttachment:
+    """A dataset as the journalist attached it."""
+
+    id: str
+    name: str
+    dataset: "ParsedDataset"
+
+
+@dataclass(frozen=True)
 class ParsedDataset:
     columns: tuple[Column, ...]
     rows: list[dict[str, Value]]
@@ -75,9 +84,9 @@ def parse_dataset(name: str, content: bytes) -> ParsedDataset:
         raise DatasetError(f"The file could not be read as a spreadsheet: {exc}") from None
 
     if frame.empty or len(frame.columns) == 0:
-        raise DatasetError("The spreadsheet has no rows.")
+        raise DatasetError("The dataset has no rows.")
     if len(frame) > MAX_ROWS:
-        raise DatasetError(f"The spreadsheet has {len(frame)} rows; the limit is {MAX_ROWS}.")
+        raise DatasetError(f"The dataset has {len(frame)} rows; the limit is {MAX_ROWS}.")
 
     names = [str(c).strip() for c in frame.columns]
     raw = [[_cell(v) for v in row] for row in frame.itertuples(index=False, name=None)]
@@ -113,6 +122,8 @@ def _cell(value: Any) -> Value:
         return str(value).lower()
     if isinstance(value, int | float):
         return value
+    if isinstance(value, datetime) and value.time() == datetime.min.time():
+        return value.date().isoformat()  # Excel stores dates as midnight; keep them dates.
     if isinstance(value, datetime | date):
         return value.isoformat()
     text = str(value)
@@ -148,15 +159,17 @@ _MARKER = re.compile(
 )
 
 
-def inject_datasets(html: str, datasets: dict[str, ParsedDataset]) -> str:
+def inject_datasets(html: str, datasets: list[DatasetAttachment]) -> str:
     """Fill every dataset marker with its full rows. A marker naming no dataset is a broken reply."""
+    by_id = {d.id: d.dataset for d in datasets}
 
     def fill(marker: re.Match[str]) -> str:
-        dataset = datasets.get(marker.group(2))
+        dataset = by_id.get(marker.group(2))
         if dataset is None:
             raise ReplyError(f"The model used a dataset that doesn't exist ({marker.group(2)}).")
-        # Keep the JSON from ending the <script> early; "<\/" is still valid JSON.
-        rows = dataset.to_json().replace("</", "<\\/").replace("<!--", "<\\!--")
+        # No "<" at all, so nothing in a cell can end the <script> or open a comment;
+        # "\u003c" is the same character to JSON.parse.
+        rows = dataset.to_json().replace("<", "\\u003c")
         return marker.group(1) + rows + marker.group(4)
 
     return _MARKER.sub(fill, html)
@@ -167,11 +180,12 @@ def without_dataset_contents(html: str) -> str:
     return _MARKER.sub(lambda m: m.group(1) + m.group(4), html)
 
 
-def describe_for_model(dataset_id: str, name: str, dataset: ParsedDataset) -> str:
+def describe_for_model(attached: DatasetAttachment) -> str:
+    dataset = attached.dataset
     columns = ", ".join(f"{c.name} ({c.type})" for c in dataset.columns)
     sample = json.dumps(dataset.rows[:SAMPLE_ROWS], ensure_ascii=False)
     return (
-        f'- Dataset "{dataset_id}": {name}, {len(dataset.rows)} rows.\n'
+        f'- Dataset "{attached.id}": {attached.name}, {len(dataset.rows)} rows.\n'
         f"  Columns: {columns}\n"
         f"  First rows: {sample}"
     )

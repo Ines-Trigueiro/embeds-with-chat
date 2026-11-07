@@ -15,15 +15,21 @@ from pydantic import BaseModel, Field
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
-from embeds.datasets import DatasetError, ParsedDataset, is_dataset_file, parse_dataset
-from embeds.images import image_type, image_url
+from embeds.datasets import (
+    DatasetError,
+    ParsedDataset,
+    is_dataset_file,
+    parse_dataset,
+    without_dataset_contents,
+)
 from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
+from embeds.images import image_type, image_url
 from embeds.languages import Language
 from embeds.previews import Previews
 from embeds.quality_check import Finding, Severity, check, has_blockers
 from embeds.store import Attachment, AttachmentKind, Embed, Message, Role, Store, Version
 
-MAX_UPLOAD_BYTES = 5_000_000
+MAX_ATTACHMENT_BYTES = 5_000_000
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -168,6 +174,9 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             embed_url=embed_url(origin, embed_id, number),
         )
 
+    def quality_findings(version: Version) -> list[Finding]:
+        return check(without_dataset_contents(version.html), origin)
+
     def version_out(version: Version, published: bool) -> VersionOut:
         embed_id, number = version.embed_id, version.number
         return VersionOut(
@@ -176,7 +185,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             preview_url=previews.url(embed_id, number),
             published=published,
             delivery=delivery(embed_id, number) if published else None,
-            findings=[FindingOut.of(f) for f in check(version.html, origin)],
+            findings=[FindingOut.of(f) for f in quality_findings(version)],
         )
 
     def opened(embed: Embed) -> OpenedEmbed:
@@ -219,10 +228,11 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         version = store.version(embed_id, number)
         if version is None:
             raise HTTPException(status_code=404, detail="No such version")
-        findings = check(version.html, origin)
-        if has_blockers(findings) or (findings and not accept_warnings):
+        findings = quality_findings(version)
+        blocked = has_blockers(findings)
+        if blocked or (findings and not accept_warnings):
             raise HTTPException(
-                status_code=422 if has_blockers(findings) else 409,
+                status_code=422 if blocked else 409,
                 detail={"findings": [FindingOut.of(f).model_dump() for f in findings]},
             )
         store.publish(embed_id, number)
@@ -230,12 +240,13 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
     async def attach(embed_id: str, file: UploadFile, journalist: Journalist) -> AttachmentOut:
-        """Attach a spreadsheet (a Dataset) or an Image. A new upload is always a new attachment."""
+        """Attach a Dataset (.csv, .xlsx) or an Image. Each one is a new attachment."""
         owned_embed(embed_id, journalist)
         name = (file.filename or "attachment").strip()[:200]
-        content = await file.read(MAX_UPLOAD_BYTES + 1)
-        if len(content) > MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=422, detail="The file is larger than 5 MB.")
+        content = await file.read(MAX_ATTACHMENT_BYTES + 1)
+        if len(content) > MAX_ATTACHMENT_BYTES:
+            limit = MAX_ATTACHMENT_BYTES // 1_000_000
+            raise HTTPException(status_code=422, detail=f"The file is larger than {limit} MB.")
         if media_type := image_type(content):
             image = store.add_attachment(embed_id, "image", name, media_type, content)
             return AttachmentOut.of(image, origin)

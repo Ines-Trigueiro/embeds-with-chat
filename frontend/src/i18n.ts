@@ -63,7 +63,8 @@ const en = {
     confirm_one: "There is {{count}} warning for this version. Publish anyway?",
     confirm_other: "There are {{count}} warnings for this version. Publish anyway?",
     rules: {
-      external_resource: "It loads or links to something outside the allowed list ({{detail}}). That will be blocked for readers.",
+      external_resource: "It loads something from outside the allowed list ({{detail}}). That will be blocked for readers.",
+      link: "It has a link ({{detail}}), but links can't open from an embed. Write the source as text instead.",
       cookie_access: "It tries to read cookies ({{detail}}).",
       page_access: "It tries to reach the article page around it ({{detail}}).",
       form_submission: "It has a form that sends data somewhere ({{detail}}).",
@@ -141,7 +142,8 @@ const nb: Translations = {
     confirm_one: "Det er {{count}} advarsel for denne versjonen. Publisere likevel?",
     confirm_other: "Det er {{count}} advarsler for denne versjonen. Publisere likevel?",
     rules: {
-      external_resource: "Den laster eller lenker til noe utenfor den tillatte listen ({{detail}}). Det blir blokkert for leserne.",
+      external_resource: "Den laster noe utenfor den tillatte listen ({{detail}}). Det blir blokkert for leserne.",
+      link: "Den har en lenke ({{detail}}), men lenker kan ikke åpnes fra en embed. Skriv kilden som tekst i stedet.",
       cookie_access: "Den prøver å lese informasjonskapsler ({{detail}}).",
       page_access: "Den prøver å nå artikkelsiden rundt seg ({{detail}}).",
       form_submission: "Den har et skjema som sender data et sted ({{detail}}).",
@@ -217,7 +219,8 @@ const da: Translations = {
     confirm_one: "Der er {{count}} advarsel for denne version. Udgiv alligevel?",
     confirm_other: "Der er {{count}} advarsler for denne version. Udgiv alligevel?",
     rules: {
-      external_resource: "Den indlæser eller linker til noget uden for den tilladte liste ({{detail}}). Det bliver blokeret for læserne.",
+      external_resource: "Den indlæser noget uden for den tilladte liste ({{detail}}). Det bliver blokeret for læserne.",
+      link: "Den har et link ({{detail}}), men links kan ikke åbnes fra et embed. Skriv kilden som tekst i stedet.",
       cookie_access: "Den forsøger at læse cookies ({{detail}}).",
       page_access: "Den forsøger at nå artikelsiden omkring sig ({{detail}}).",
       form_submission: "Den har en formular, der sender data et sted hen ({{detail}}).",

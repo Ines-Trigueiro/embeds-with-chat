@@ -48,7 +48,6 @@ def test_a_well_behaved_embed_has_no_findings() -> None:
         '<img src="https://example.com/pic.jpg" alt="x">',
         '<script>fetch("https://api.example.com/track")</script>',
         '<div style="background: url(https://example.com/bg.png)"></div>',
-        '<a href="https://example.com/more">Les mer</a>',
         '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>',
         '<script src="//evil.example/x.js"></script>',
     ],
@@ -127,3 +126,9 @@ def test_findings_say_what_was_found() -> None:
 
 def test_the_test_suites_minimal_document_is_clean() -> None:
     assert check(doc("<p>hei</p>"), ORIGIN) == []
+
+
+def test_links_are_their_own_finding() -> None:
+    html = GOOD.replace("<p>Kilde: NVE, 1. mars 2025</p>", '<p>Kilde: <a href="https://nve.no">NVE</a></p>')
+    assert ("link", "block") in rules(html)
+    assert ("external_resource", "block") not in rules(html)

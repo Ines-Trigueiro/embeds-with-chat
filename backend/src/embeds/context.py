@@ -6,16 +6,14 @@ model to edit the wrong document; "make the buttons bigger" always means the lat
 Datasets are described (schema and a sample), never included in full (ADR 0002).
 """
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-
 import base64
 from typing import Any
 
-from embeds.datasets import ParsedDataset, describe_for_model, without_dataset_contents
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+
+from embeds.datasets import DatasetAttachment, describe_for_model, without_dataset_contents
 from embeds.images import ImageForModel
 from embeds.store import Message, Version
-
-Datasets = dict[str, tuple[str, ParsedDataset]]  # id -> (file name, dataset)
 
 
 def turn_context(
@@ -23,8 +21,8 @@ def turn_context(
     conversation: list[Message],
     latest: Version | None,
     request: str,
-    datasets: Datasets | None = None,
-    images: list[ImageForModel] | None = None,
+    datasets: list[DatasetAttachment],
+    images: list[ImageForModel],
 ) -> list[BaseMessage]:
     messages: list[BaseMessage] = [SystemMessage(system)]
     for message in conversation:
@@ -32,7 +30,7 @@ def turn_context(
             messages.append(HumanMessage(message.text))
         else:
             messages.append(AIMessage(message.text))
-    text = _request_with_context(request, latest, datasets or {}, images or [])
+    text = _request_with_context(request, latest, datasets, images)
     if not images:
         messages.append(HumanMessage(text))
         return messages
@@ -48,17 +46,14 @@ def turn_context(
 
 
 def _request_with_context(
-    request: str, latest: Version | None, datasets: Datasets, images: list[ImageForModel]
+    request: str, latest: Version | None, datasets: list[DatasetAttachment], images: list[ImageForModel]
 ) -> str:
     parts = []
     if images:
         listed = "\n".join(f'- Image "{i.name}", at {i.url}' for i in images)
         parts.append(f"Images the journalist has attached, shown in this order:\n{listed}")
     if datasets:
-        described = "\n".join(
-            describe_for_model(dataset_id, name, dataset)
-            for dataset_id, (name, dataset) in datasets.items()
-        )
+        described = "\n".join(describe_for_model(d) for d in datasets)
         parts.append(f"Datasets the journalist has attached:\n{described}")
     if latest is not None:
         parts.append(

@@ -75,6 +75,8 @@ export interface Attachment {
   /** Datasets only. */
   rows: number | null;
   columns: { name: string; type: string }[] | null;
+  /** Images only: where the embed can show it. */
+  url: string | null;
 }
 
 export interface OpenedEmbed extends Embed {
@@ -101,31 +103,20 @@ function headers(journalist: string): HeadersInit {
   return { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist) };
 }
 
-/** An error the API explains (FastAPI's `detail`), so the journalist sees why. */
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly detail: unknown,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 async function call(journalist: string, path: string, init: RequestInit = {}): Promise<Response> {
-  const isUpload = init.body instanceof FormData; // The browser sets the multipart boundary.
+  const isMultipart = init.body instanceof FormData; // The browser sets the boundary itself.
   const base = headers(journalist) as Record<string, string>;
-  if (isUpload) delete base["Content-Type"];
+  if (isMultipart) delete base["Content-Type"];
   const response = await fetch(path, { ...init, headers: { ...base, ...init.headers } });
   if (!response.ok) {
+    // Show the API's own explanation (FastAPI's `detail`) when it gives one.
     let detail: unknown = null;
     try {
       detail = (await response.json()).detail;
     } catch {
       // Not JSON: fall back to the status line.
     }
-    const message = typeof detail === "string" ? detail : `${init.method ?? "GET"} ${path} failed: ${response.status}`;
-    throw new ApiError(response.status, detail, message);
+    throw new Error(typeof detail === "string" ? detail : `${init.method ?? "GET"} ${path} failed: ${response.status}`);
   }
   return response;
 }

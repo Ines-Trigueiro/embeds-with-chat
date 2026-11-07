@@ -166,3 +166,54 @@ def test_a_version_that_names_an_unknown_dataset_is_an_error(
 
     assert only(events, "version") == []
     assert len(only(events, "error")) == 1
+
+
+def test_cells_that_look_like_html_cannot_break_out_of_the_data(
+    editor: TestClient, embed_origin: TestClient, fake_model: FakeChatModel
+) -> None:
+    tricky = 'navn;notat\nA;</script><script>alert(1)</script>\nB;<!-- kommentar -->\n'
+    embed_id = new_embed(editor)
+    dataset_id = upload(editor, embed_id, "tricky.csv", tricky.encode()).json()["id"]
+    fake_model.replies.append(f"```html\n{using(dataset_id)}\n```")
+    chat(editor, embed_id, "Lag en tabell")
+
+    html = served_latest(editor, embed_origin, embed_id)
+
+    assert injected(html, dataset_id) == [
+        {"navn": "A", "notat": "</script><script>alert(1)</script>"},
+        {"navn": "B", "notat": "<!-- kommentar -->"},
+    ]
+    marker = re.search(r'data-dataset="[^"]+">(.*?)</script>', html, re.S)
+    assert marker and "<" not in marker.group(1)  # nothing in the data can open or close a tag
+
+
+def test_data_in_a_dataset_never_trips_the_quality_check(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    rows = "\n".join(f"Kilde {i};https://ssb.no/tabell/{i};{'x' * 120}" for i in range(4000))
+    embed_id = new_embed(editor)
+    dataset_id = upload(editor, embed_id, "lenker.csv", f"navn;lenke;tekst\n{rows}\n".encode()).json()["id"]
+    fake_model.replies.append(f"```html\n{using(dataset_id)}\n```")
+
+    [version] = only(chat(editor, embed_id, "Lag en liste"), "version")
+
+    assert version["findings"] == []
+
+
+def test_dates_in_xlsx_files_stay_dates(editor: TestClient, fake_model: FakeChatModel) -> None:
+    import datetime
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    assert sheet is not None
+    sheet.append(["dato", "hendelse"])
+    sheet.append([datetime.datetime(2025, 3, 1), "Vedtak"])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    embed_id = new_embed(editor)
+    upload(editor, embed_id, "tidslinje.xlsx", buffer.getvalue())
+    fake_model.replies.append("Ok?")
+
+    chat(editor, embed_id, "Lag en tidslinje")
+
+    assert '"dato": "2025-03-01"' in fake_model.received[0][-1].text

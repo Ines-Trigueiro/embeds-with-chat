@@ -20,7 +20,7 @@ shown to many readers inside a sandboxed iframe in an article.
 
 ## Datasets
 
-The journalist may attach spreadsheets. You see each one's columns and first rows, but
+The journalist may attach datasets (from spreadsheets). You see each one's columns and first rows, but
 never type their values into the embed: the server adds the full data for you. To use a
 dataset, put this empty element in the document, exactly as written, with its id:
 

@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS publications (
     FOREIGN KEY (embed_id, number) REFERENCES versions (embed_id, number)
 );
 
--- Files the journalist attached to an embed: datasets now, images later. Never changed.
+-- What the journalist attached to an embed: datasets and images. Never changed.
 CREATE TABLE IF NOT EXISTS attachments (
     id          TEXT PRIMARY KEY,
     embed_id    TEXT NOT NULL REFERENCES embeds (id),
@@ -276,8 +276,9 @@ class Store:
     def add_attachment(
         self, embed_id: str, kind: AttachmentKind, name: str, media_type: str, content: bytes
     ) -> Attachment:
+        # 128 random bits: image URLs are public, so they must not be guessable.
         attachment = Attachment(
-            secrets.token_urlsafe(6), embed_id, kind, name, media_type, _now(), content
+            secrets.token_urlsafe(16), embed_id, kind, name, media_type, _now(), content
         )
         with self._connect() as db:
             db.execute(
