@@ -36,7 +36,7 @@ export interface Embed {
 async function request<T>(journalist: string, path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: { "Content-Type": "application/json", "X-Journalist": journalist, ...init.headers },
+    headers: { "Content-Type": "application/json", "X-Journalist": encodeURIComponent(journalist), ...init.headers },
   });
   if (!response.ok) {
     throw new Error(`${init.method ?? "GET"} ${path} failed: ${response.status}`);

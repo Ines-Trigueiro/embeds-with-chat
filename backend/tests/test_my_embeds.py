@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from fastapi.testclient import TestClient
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 
@@ -53,3 +55,25 @@ def test_embeds_survive_an_app_restart(
         listed = second.get("/api/embeds", headers=as_journalist("kari"))
 
     assert [e["title"] for e in listed.json()] == ["Tidslinje"]
+
+
+def test_journalist_names_outside_latin1_work_when_url_encoded(editor: TestClient) -> None:
+    # Browsers refuse non-Latin-1 header values, so the frontend URL-encodes the name.
+    lukasz = {"X-Journalist": quote("Łukasz 🗞")}
+    editor.post("/api/embeds", json={"title": "Valgquiz"}, headers=lukasz)
+
+    listed = editor.get("/api/embeds", headers=lukasz)
+
+    assert [e["title"] for e in listed.json()] == ["Valgquiz"]
+
+
+def test_encoded_and_plain_spellings_of_a_name_are_the_same_journalist(editor: TestClient) -> None:
+    editor.post("/api/embeds", json={"title": "Sykkelkart"}, headers={"X-Journalist": "%4Fla"})
+
+    listed = editor.get("/api/embeds", headers={"X-Journalist": "Ola"})
+
+    assert [e["title"] for e in listed.json()] == ["Sykkelkart"]
+
+
+def test_badly_encoded_journalist_names_are_rejected(editor: TestClient) -> None:
+    assert editor.get("/api/embeds", headers={"X-Journalist": "%FF"}).status_code == 422
