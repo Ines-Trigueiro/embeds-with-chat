@@ -68,3 +68,31 @@ Where it pushed back on me:
 
 - The assistant proposed which five choices the decision note should lead with, and I approved them. Its reasons: each had a real trade-off and was either already in an ADR or proven by a test.
 - The README commands were checked rather than written from memory. That check found a missing variable in `.env.example` (`PREVIEW_TTL_SECONDS`), and confirmed the local-dev command actually runs.
+
+## 6. Tickets #11–#17: UI overhaul
+
+- **Starting point:** I gave the assistant a list of ten UI complaints: bland colours, too much text, page-level scrolling, no markdown, an unfriendly publish step, and others.
+- **Settling the open questions first:** before building anything, it grilled me in two rounds of numbered questions, each with a recommended answer.
+  - **The ambiguous request:** I had asked for "the embed should switch languages without a new prompt". The assistant laid out two readings: a reader-facing switcher inside the embed, or the journalist changing the language and getting an automatic translation. I chose the second, which became ADR 0004 and the glossary terms *Translation* and *Title*.
+  - **The rest I accepted as recommended:**
+    - generic CMS steps instead of one named CMS;
+    - publishing in a dialog;
+    - a sidebar instead of the My embeds page;
+    - a title suggested by the model, with a truncation fallback;
+    - no deleting of embeds.
+- **Seams agreed before tests:** the backend changes (titles and translation) were built test-first at the HTTP API with the fake model.
+  - The assistant proposed generating the title *before* the reply rather than in parallel. That keeps the fake model's scripted replies in a predictable order.
+  - Frontend changes were checked with the typecheck and with Playwright screenshots at 1400px and 390px, in light and dark mode.
+- **What the screenshots caught:**
+  - stretched flags in the dropdown;
+  - card padding lost in a CSS rewrite;
+  - the new embed's chat about to remount mid-stream when it received its id;
+  - a three-row preview bar on phones.
+- **Checking against the real model (Haiku):** the assistant ran the new-embed flow and a real translation in the browser, under a separate test journalist, so my demo data stayed clean.
+- **What the two-axis review caught:**
+  - **The failed-translation bug (both reviewers, independently):** a translation that failed still left a "Translated to Danish" marker, and every later prompt replayed the request. Fixed test-first: a translation now leaves a trace only when it produced a version.
+  - **A CSS replace that matched twice,** copying rules into the reduced-motion block.
+  - **Glossary drift.** I kept "Copy embed code" as the label journalists see, but code identifiers now say *snippet*.
+- **Left as they are, on purpose:**
+  - The translation endpoint refuses a same-language request with 409. The UI never sends one.
+  - `chat_turn` takes a `translation` flag instead of a request object. A small smell, not worth the churn yet.
