@@ -138,14 +138,18 @@ def new_embed(editor: TestClient, journalist: str = "kari", title: str = "Test")
 
 
 def chat(
-    editor: TestClient, embed_id: str, content: str, journalist: str = "kari"
+    editor: TestClient,
+    embed_id: str,
+    content: str,
+    journalist: str = "kari",
+    language: str = "nb",
 ) -> list[tuple[str, Any]]:
     """Send a chat message and return the streamed server-sent events as (event, data)."""
     events: list[tuple[str, Any]] = []
     with editor.stream(
         "POST",
         f"/api/embeds/{embed_id}/messages",
-        json={"content": content},
+        json={"content": content, "language": language},
         headers=as_journalist(journalist),
     ) as response:
         assert response.status_code == 200, response.read()

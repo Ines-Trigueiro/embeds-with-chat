@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { forgetJournalist, storedJournalist, storeJournalist } from "./api";
 import { EmbedEditor } from "./EmbedEditor";
 import { JournalistPrompt } from "./JournalistPrompt";
+import { LanguagePicker } from "./LanguagePicker";
 import { MyEmbeds } from "./MyEmbeds";
 
 /** "#/embeds/<id>" opens an embed; anything else is My embeds. Survives a reload. */
@@ -11,6 +13,7 @@ function embedIdFromHash(): string | null {
 }
 
 export function App() {
+  const { t } = useTranslation();
   const [journalist, setJournalist] = useState(storedJournalist);
   const [embedId, setEmbedId] = useState(embedIdFromHash);
 
@@ -35,9 +38,10 @@ export function App() {
     <div className={embedId ? "shell wide" : "shell"}>
       <header className="topbar">
         <h1>
-          <a href="#/">Embeds with chat</a>
+          <a href="#/">{t("app.title")}</a>
         </h1>
         <span className="who">
+          <LanguagePicker />
           {journalist}
           <button
             className="link"
@@ -46,7 +50,7 @@ export function App() {
               setJournalist(null);
             }}
           >
-            Switch journalist
+            {t("app.switchJournalist")}
           </button>
         </span>
       </header>

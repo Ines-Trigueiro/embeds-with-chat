@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api, type Message, type OpenedEmbed, type Version } from "./api";
+import { currentLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from "./i18n";
 import { Preview, type Device } from "./Preview";
 
 interface Turn extends Message {
@@ -10,6 +12,7 @@ interface Turn extends Message {
 }
 
 export function EmbedEditor({ journalist, embedId }: { journalist: string; embedId: string }) {
+  const { t } = useTranslation();
   const [embed, setEmbed] = useState<OpenedEmbed | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -54,7 +57,8 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
     ]);
 
     try {
-      for await (const { event, data } of api.sendMessage(journalist, embedId, content)) {
+      const events = api.sendMessage(journalist, embedId, content, currentLanguage());
+      for await (const { event, data } of events) {
         if (event === "guide")
           updateModelTurn((t) => ({ ...t, guides: [...(t.guides ?? []), data.name] }));
         else if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
@@ -77,25 +81,46 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
   const version = versions.find((v) => v.number === shownNumber) ?? null;
   const latestNumber = versions.length ? versions[versions.length - 1].number : null;
 
+  async function changeEmbedLanguage(embed_language: Language) {
+    const changed = await api.setEmbedLanguage(journalist, embedId, embed_language);
+    setEmbed((current) => current && { ...current, embed_language: changed.embed_language });
+  }
+
   if (loadError) return <p className="error">{loadError}</p>;
-  if (!embed) return <p className="hint">Loading…</p>;
+  if (!embed) return <p className="hint">{t("editor.loading")}</p>;
 
   return (
     <div className="editor">
       <section className="chat card">
-        <h2>{embed.title}</h2>
+        <div className="chat-head">
+          <h2>{embed.title}</h2>
+          <label className="embed-language" title={t("editor.embedLanguageHint")}>
+            {t("editor.embedLanguage")}
+            <select
+              value={embed.embed_language}
+              disabled={streaming}
+              onChange={(e) => changeEmbedLanguage(e.target.value as Language)}
+            >
+              {LANGUAGES.map((language) => (
+                <option key={language} value={language}>
+                  {LANGUAGE_NAMES[language]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <ol className="turns" ref={turnList}>
           {turns.map((turn, i) => (
             <li key={i} className={`turn ${turn.role}`}>
               {turn.guides?.map((guide, g) => (
                 <p key={g} className="status">
-                  Reading guide: {guide}…
+                  {t("editor.readingGuide", { name: t(`guides.${guide}`, { defaultValue: guide }) })}
                 </p>
               ))}
               {turn.text || (streaming && i === turns.length - 1 ? "…" : "")}
               {turn.version_number !== null && (
                 <button className="badge" onClick={() => setShownNumber(turn.version_number)}>
-                  Version {turn.version_number}
+                  {t("editor.version", { number: turn.version_number })}
                 </button>
               )}
               {turn.error && <p className="error">{turn.error}</p>}
@@ -106,14 +131,14 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
           <textarea
             value={input}
             rows={3}
-            placeholder="Describe what you want, or what to change…"
+            placeholder={t("editor.placeholder")}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) send(e);
             }}
           />
           <button type="submit" disabled={streaming || !input.trim()}>
-            Send
+            {t("editor.send")}
           </button>
         </form>
       </section>
@@ -121,10 +146,10 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
       <section className="preview card">
         <div className="preview-bar">
           {versions.length === 0 ? (
-            <span>No version yet</span>
+            <span>{t("editor.noVersion")}</span>
           ) : (
             <label className="version-picker">
-              Showing
+              {t("editor.showing")}
               <select
                 value={shownNumber ?? ""}
                 disabled={streaming}
@@ -132,14 +157,14 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
               >
                 {[...versions].reverse().map((v) => (
                   <option key={v.number} value={v.number}>
-                    Version {v.number}
-                    {v.number === latestNumber ? " (latest)" : ""}
+                    {t("editor.version", { number: v.number })}
+                    {v.number === latestNumber ? ` ${t("editor.latest")}` : ""}
                   </option>
                 ))}
               </select>
             </label>
           )}
-          <div className="toggle" role="group" aria-label="Preview size">
+          <div className="toggle" role="group" aria-label={t("editor.previewSize")}>
             {(["mobile", "desktop"] as const).map((d) => (
               <button
                 key={d}
@@ -147,7 +172,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
                 aria-pressed={device === d}
                 onClick={() => setDevice(d)}
               >
-                {d === "mobile" ? "Mobile" : "Desktop"}
+                {t(`editor.${d}`)}
               </button>
             ))}
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export type Device = "mobile" | "desktop";
 
@@ -17,6 +18,7 @@ interface Props {
  * no top navigation and no popups. Content always comes from the embed origin.
  */
 export function Preview({ versionUrl, progressFrameUrl, progressHtml, device }: Props) {
+  const { t } = useTranslation();
   const writing = progressHtml !== null;
 
   return (
@@ -30,18 +32,19 @@ export function Preview({ versionUrl, progressFrameUrl, progressHtml, device }: 
             className="preview-frame"
             sandbox="allow-scripts"
             src={versionUrl}
-            title="Embed preview"
+            title={t("preview.frameTitle")}
           />
         ) : (
-          <p className="preview-empty">Describe the embed you want in the chat, and it appears here.</p>
+          <p className="preview-empty">{t("preview.empty")}</p>
         )}
-        {writing && <div className="writing">Writing…</div>}
+        {writing && <div className="writing">{t("preview.writing")}</div>}
       </div>
     </div>
   );
 }
 
 function ProgressFrame({ url, html }: { url: string; html: string }) {
+  const { t } = useTranslation();
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
 
@@ -61,6 +64,6 @@ function ProgressFrame({ url, html }: { url: string; html: string }) {
   }, [ready, html]);
 
   return (
-    <iframe ref={frame} className="preview-frame" sandbox="allow-scripts" src={url} title="Work in progress" />
+    <iframe ref={frame} className="preview-frame" sandbox="allow-scripts" src={url} title={t("preview.writing")} />
   );
 }

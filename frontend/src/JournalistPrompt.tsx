@@ -1,6 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { LanguagePicker } from "./LanguagePicker";
 
 export function JournalistPrompt({ onSubmit }: { onSubmit: (name: string) => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const trimmed = name.trim();
 
@@ -12,14 +16,17 @@ export function JournalistPrompt({ onSubmit }: { onSubmit: (name: string) => voi
         if (trimmed) onSubmit(trimmed);
       }}
     >
-      <h1>Embeds with chat</h1>
+      <div className="prompt-head">
+        <h1>{t("app.title")}</h1>
+        <LanguagePicker />
+      </div>
       <label>
-        Your name
+        {t("prompt.yourName")}
         <input autoFocus value={name} maxLength={64} onChange={(e) => setName(e.target.value)} />
       </label>
-      <p className="hint">No password: your name only keeps your embeds apart from others'.</p>
+      <p className="hint">{t("prompt.hint")}</p>
       <button type="submit" disabled={!trimmed}>
-        Continue
+        {t("prompt.continue")}
       </button>
     </form>
   );

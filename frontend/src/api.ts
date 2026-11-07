@@ -27,10 +27,13 @@ export function forgetJournalist(): void {
   }
 }
 
+import type { Language } from "./i18n";
+
 export interface Embed {
   id: string;
   title: string;
   created_at: string;
+  embed_language: Language;
 }
 
 export interface Version {
@@ -86,10 +89,11 @@ async function* sendMessage(
   journalist: string,
   embedId: string,
   content: string,
+  language: Language,
 ): AsyncGenerator<ChatEvent> {
   const response = await call(journalist, `/api/embeds/${embedId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, language }),
   });
   if (!response.body) throw new Error("The reply could not be read.");
 
@@ -119,6 +123,14 @@ export const api = {
   openEmbed: (journalist: string, embedId: string) =>
     request<OpenedEmbed>(journalist, `/api/embeds/${embedId}`),
   myEmbeds: (journalist: string) => request<Embed[]>(journalist, "/api/embeds"),
-  createEmbed: (journalist: string, title: string) =>
-    request<Embed>(journalist, "/api/embeds", { method: "POST", body: JSON.stringify({ title }) }),
+  createEmbed: (journalist: string, title: string, embed_language: Language) =>
+    request<Embed>(journalist, "/api/embeds", {
+      method: "POST",
+      body: JSON.stringify({ title, embed_language }),
+    }),
+  setEmbedLanguage: (journalist: string, embedId: string, embed_language: Language) =>
+    request<Embed>(journalist, `/api/embeds/${embedId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ embed_language }),
+    }),
 };

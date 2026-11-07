@@ -13,14 +13,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from embeds.languages import Language
+
 Role = Literal["journalist", "model"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS embeds (
-    id          TEXT PRIMARY KEY,
-    journalist  TEXT NOT NULL,
-    title       TEXT NOT NULL,
-    created_at  TEXT NOT NULL
+    id              TEXT PRIMARY KEY,
+    journalist      TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    embed_language  TEXT NOT NULL DEFAULT 'nb'
 );
 CREATE INDEX IF NOT EXISTS embeds_by_journalist ON embeds (journalist, created_at);
 
@@ -45,12 +48,19 @@ CREATE TABLE IF NOT EXISTS messages (
 """
 
 
+# Columns added after the first release, for databases created before them.
+MIGRATIONS = {
+    ("embeds", "embed_language"): "ALTER TABLE embeds ADD COLUMN embed_language TEXT NOT NULL DEFAULT 'nb'",
+}
+
+
 @dataclass(frozen=True)
 class Embed:
     id: str
     journalist: str
     title: str
     created_at: str
+    embed_language: Language
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,10 @@ class Store:
         with self._connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript(SCHEMA)
+            for (table, column), statement in MIGRATIONS.items():
+                columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+                if column not in columns:
+                    db.execute(statement)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -98,19 +112,19 @@ class Store:
         finally:
             db.close()
 
-    def create_embed(self, journalist: str, title: str) -> Embed:
-        embed = Embed(
-            id=new_embed_id(),
-            journalist=journalist,
-            title=title,
-            created_at=_now(),
-        )
+    def create_embed(self, journalist: str, title: str, embed_language: Language) -> Embed:
+        embed = Embed(new_embed_id(), journalist, title, _now(), embed_language)
         with self._connect() as db:
             db.execute(
-                "INSERT INTO embeds (id, journalist, title, created_at) VALUES (?, ?, ?, ?)",
-                (embed.id, embed.journalist, embed.title, embed.created_at),
+                "INSERT INTO embeds (id, journalist, title, created_at, embed_language)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (embed.id, embed.journalist, embed.title, embed.created_at, embed_language),
             )
         return embed
+
+    def set_embed_language(self, embed_id: str, embed_language: Language) -> None:
+        with self._connect() as db:
+            db.execute("UPDATE embeds SET embed_language = ? WHERE id = ?", (embed_language, embed_id))
 
     def embeds_of(self, journalist: str) -> list[Embed]:
         with self._connect() as db:

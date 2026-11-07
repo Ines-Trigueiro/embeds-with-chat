@@ -18,8 +18,9 @@ from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, Tool
 
 from embeds.context import turn_context
 from embeds.guides import LOAD_GUIDE_TOOL, base_guide, load_guide
+from embeds.languages import Language, language_instructions, with_document_language
 from embeds.reply import ReplyError, ReplyStream, parse_reply, prose_before_html
-from embeds.store import Store, Version
+from embeds.store import Embed, Store, Version
 
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_GUIDE_ROUNDS = 3
@@ -29,11 +30,18 @@ ChatEvent = tuple[str, dict[str, Any] | Version]
 
 
 async def chat_turn(
-    store: Store, model: BaseChatModel, embed_id: str, content: str, embed_origin: str
+    store: Store,
+    model: BaseChatModel,
+    embed: Embed,
+    content: str,
+    chat_language: Language,
+    embed_origin: str,
 ) -> AsyncIterator[ChatEvent]:
+    embed_id = embed.id
     history = store.messages_of(embed_id)
     latest = store.latest_version(embed_id)
-    messages = turn_context(base_guide(embed_origin), history, latest, content)
+    system = base_guide(embed_origin) + "\n" + language_instructions(chat_language, embed.embed_language)
+    messages = turn_context(system, history, latest, content)
     store.add_message(embed_id, "journalist", content)
 
     stream = ReplyStream()
@@ -47,7 +55,8 @@ async def chat_turn(
     except Exception as exc:  # The provider failed: bad key, rate limit, network, ...
         failure = (f"The model could not answer: {exc}", MODEL_UNAVAILABLE)
     else:
-        version = store.add_version(embed_id, reply.html) if reply.html else None
+        html = with_document_language(reply.html, embed.embed_language) if reply.html else None
+        version = store.add_version(embed_id, html) if html else None
         store.add_message(embed_id, "model", reply.text, version.number if version else None)
         if version:
             yield "version", version

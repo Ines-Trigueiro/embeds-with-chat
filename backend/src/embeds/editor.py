@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from embeds.chat import chat_turn
 from embeds.config import Settings
+from embeds.languages import Language
 from embeds.previews import Previews
 from embeds.store import Embed, Message, Role, Store, Version
 
@@ -39,20 +40,32 @@ Journalist = Annotated[str, Depends(journalist_name)]
 
 class NewEmbed(BaseModel):
     title: str = Field(min_length=1, max_length=200)
+    embed_language: Language = "nb"
+
+
+class EmbedChanges(BaseModel):
+    embed_language: Language
 
 
 class EmbedOut(BaseModel):
     id: str
     title: str
     created_at: str
+    embed_language: Language
 
     @classmethod
     def of(cls, embed: Embed) -> Self:
-        return cls(id=embed.id, title=embed.title, created_at=embed.created_at)
+        return cls(
+            id=embed.id,
+            title=embed.title,
+            created_at=embed.created_at,
+            embed_language=embed.embed_language,
+        )
 
 
 class NewMessage(BaseModel):
     content: str = Field(min_length=1, max_length=10_000)
+    language: Language = "nb"  # The journalist's chat language.
 
 
 class VersionOut(BaseModel):
@@ -98,7 +111,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.post("/api/embeds", status_code=201)
     def create_embed(body: NewEmbed, journalist: Journalist) -> EmbedOut:
-        return EmbedOut.of(store.create_embed(journalist, body.title))
+        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language))
 
     @app.get("/api/embeds")
     def my_embeds(journalist: Journalist) -> list[EmbedOut]:
@@ -116,12 +129,20 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             progress_frame_url=f"{settings.embed_origin}/progress-frame",
         )
 
+    @app.patch("/api/embeds/{embed_id}")
+    def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:
+        owned_embed(embed_id, journalist)
+        store.set_embed_language(embed_id, body.embed_language)
+        return EmbedOut.of(owned_embed(embed_id, journalist))
+
     @app.post("/api/embeds/{embed_id}/messages")
     def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
-        owned_embed(embed_id, journalist)
+        embed = owned_embed(embed_id, journalist)
 
         async def server_sent_events() -> AsyncIterator[str]:
-            turn = chat_turn(store, chat_model, embed_id, body.content, settings.embed_origin)
+            turn = chat_turn(
+                store, chat_model, embed, body.content, body.language, settings.embed_origin
+            )
             async for event, data in turn:
                 payload = version_out(data).model_dump() if isinstance(data, Version) else data
                 yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
