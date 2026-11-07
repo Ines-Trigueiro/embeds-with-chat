@@ -10,7 +10,9 @@ export const LANGUAGE_NAMES: Record<Language, string> = { nb: "Norsk", da: "Dans
 const en = {
   app: { title: "Embeds with chat", switchJournalist: "Switch journalist", language: "Language" },
   prompt: {
+    tagline: "Describe an interactive element, see it come to life, and put it in your article.",
     yourName: "Your name",
+    namePlaceholder: "e.g. Kari Nordmann",
     hint: "No password: your name only keeps your embeds apart from others'.",
     continue: "Continue",
   },
@@ -89,7 +91,9 @@ type Translations = typeof en;
 const nb: Translations = {
   app: { title: "Embeds med chat", switchJournalist: "Bytt journalist", language: "Språk" },
   prompt: {
+    tagline: "Beskriv et interaktivt element, se det ta form, og sett det inn i artikkelen din.",
     yourName: "Navnet ditt",
+    namePlaceholder: "f.eks. Kari Nordmann",
     hint: "Ingen passord: navnet holder bare embedene dine adskilt fra andres.",
     continue: "Fortsett",
   },
@@ -166,7 +170,9 @@ const nb: Translations = {
 const da: Translations = {
   app: { title: "Embeds med chat", switchJournalist: "Skift journalist", language: "Sprog" },
   prompt: {
+    tagline: "Beskriv et interaktivt element, se det tage form, og sæt det ind i din artikel.",
     yourName: "Dit navn",
+    namePlaceholder: "fx Mette Jensen",
     hint: "Ingen adgangskode: dit navn holder kun dine embeds adskilt fra andres.",
     continue: "Fortsæt",
   },

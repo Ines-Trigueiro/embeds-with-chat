@@ -194,7 +194,7 @@ export function EmbedEditor({ journalist, embedId }: { journalist: string; embed
               if (e.key === "Enter" && !e.shiftKey) send(e);
             }}
           />
-          <button type="submit" disabled={streaming || !input.trim()}>
+          <button type="submit" className="primary" disabled={streaming || !input.trim()}>
             {t("editor.send")}
           </button>
         </form>
