@@ -292,6 +292,12 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     @app.patch("/api/embeds/{embed_id}")
     def change_embed(embed_id: str, body: EmbedChanges, journalist: Journalist) -> EmbedOut:
         embed = owned_embed(embed_id, journalist)
+        changes_language = body.embed_language not in (None, embed.embed_language)
+        if changes_language and store.latest_version(embed_id) is not None:
+            raise HTTPException(  # ADR 0004: once there is a version, a new language is a Translation.
+                status_code=409,
+                detail="This embed already has a version. Change its language with a translation.",
+            )
         if body.embed_language is not None:
             store.set_embed_language(embed_id, body.embed_language)
             embed = replace(embed, embed_language=body.embed_language)

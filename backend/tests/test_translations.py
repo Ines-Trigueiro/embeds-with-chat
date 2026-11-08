@@ -128,3 +128,22 @@ def test_a_translation_keeps_dataset_values_exactly_as_attached(
     served = embed_origin.get(version["preview_url"].removeprefix("http://embeds.test")).text
     assert '"by": "Oslo"' in served or '"by":"Oslo"' in served
     assert "1.25" in served and "Bergen" in served
+
+
+def test_once_there_is_a_version_the_language_changes_only_through_a_translation(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    embed_id = embed_with_a_version(editor, fake_model)
+
+    refused = editor.patch(
+        f"/api/embeds/{embed_id}", json={"embed_language": "da"}, headers=as_journalist("kari")
+    )
+    renamed = editor.patch(
+        f"/api/embeds/{embed_id}", json={"title": "Nytt navn"}, headers=as_journalist("kari")
+    )
+
+    assert refused.status_code == 409
+    assert "translat" in refused.json()["detail"].lower()
+    assert renamed.status_code == 200
+    embed = opened(editor, embed_id)
+    assert (embed["embed_language"], embed["title"]) == ("nb", "Nytt navn")
