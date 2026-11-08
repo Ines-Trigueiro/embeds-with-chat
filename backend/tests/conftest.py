@@ -6,6 +6,7 @@ exercised through the HTTP interface of the two apps.
 
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -35,6 +36,14 @@ def settings(tmp_path: Path) -> Settings:
     )
 
 
+@dataclass(frozen=True)
+class FailsMidStream:
+    """A scripted reply that streams `text`, then fails the way a dropped provider does."""
+
+    text: str
+    error: Exception
+
+
 class FakeChatModel(BaseChatModel):
     """Replies with scripted text, streamed in tiny chunks, and records every prompt.
 
@@ -42,7 +51,7 @@ class FakeChatModel(BaseChatModel):
     the way a real model's tokens split them.
     """
 
-    replies: list[str | AIMessage | Exception] = []
+    replies: list[str | AIMessage | Exception | FailsMidStream] = []
     received: list[list[BaseMessage]] = []
     bound_tools: list[Any] = []
     chunk_size: int = 3
@@ -61,7 +70,7 @@ class FakeChatModel(BaseChatModel):
         self.bound_tools = list(tools)
         return self
 
-    def _next_reply(self, messages: list[BaseMessage]) -> str | AIMessage:
+    def _next_reply(self, messages: list[BaseMessage]) -> str | AIMessage | FailsMidStream:
         self.received.append(list(messages))
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
@@ -76,6 +85,7 @@ class FakeChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         reply = self._next_reply(messages)
+        assert not isinstance(reply, FailsMidStream), "only a streamed reply can fail mid-stream"
         message = reply if isinstance(reply, AIMessage) else AIMessage(content=reply)
         return ChatResult(generations=[ChatGeneration(message=message)])
 
@@ -96,9 +106,12 @@ class FakeChatModel(BaseChatModel):
                 message=AIMessageChunk(content=reply.text, tool_call_chunks=tool_call_chunks)
             )
             return
-        for start in range(0, len(reply), self.chunk_size):
-            chunk = reply[start : start + self.chunk_size]
+        text = reply.text if isinstance(reply, FailsMidStream) else reply
+        for start in range(0, len(text), self.chunk_size):
+            chunk = text[start : start + self.chunk_size]
             yield ChatGenerationChunk(message=AIMessageChunk(content=chunk))
+        if isinstance(reply, FailsMidStream):
+            raise reply.error
 
 
 @pytest.fixture
