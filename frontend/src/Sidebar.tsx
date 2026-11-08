@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Embed } from "./api";
-import { TitleInput } from "./EditableTitle";
+import { RenameButton, TitleInput } from "./EditableTitle";
 import { Icon } from "./Icon";
 import { LanguagePicker } from "./LanguagePicker";
 
@@ -25,11 +25,8 @@ export function Sidebar(props: Props) {
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
 
-  const shown = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    if (!embeds || !needle) return embeds;
-    return embeds.filter((e) => (e.title ?? "").toLocaleLowerCase().includes(needle));
-  }, [embeds, query]);
+  const needle = query.trim().toLocaleLowerCase();
+  const shown = needle ? embeds?.filter((e) => e.title?.toLocaleLowerCase().includes(needle)) ?? null : embeds;
 
   return (
     <nav className={`sidebar${collapsed ? " collapsed" : ""}`} aria-label={t("sidebar.heading")}>
@@ -111,19 +108,11 @@ export function Sidebar(props: Props) {
                           title={embed.published ? t("publish.published") : undefined}
                         />
                         <span className={embed.title ? "item-title" : "item-title untitled"}>
-                          {embed.title ?? t("sidebar.untitled")}
+                          {embed.title ?? t("sidebar.new")}
                         </span>
                         <RelativeTime iso={embed.created_at} />
                       </a>
-                      <button
-                        type="button"
-                        className="ghost icon-only rename"
-                        title={t("sidebar.rename")}
-                        aria-label={`${t("sidebar.rename")}: ${embed.title ?? t("sidebar.untitled")}`}
-                        onClick={() => setRenaming(embed.id)}
-                      >
-                        <Icon name="pencil" size={15} />
-                      </button>
+                      <RenameButton title={embed.title} onClick={() => setRenaming(embed.id)} />
                     </>
                   )}
                 </li>
@@ -152,19 +141,24 @@ export function Sidebar(props: Props) {
   );
 }
 
+/** Up to which age (in minutes) a unit is used, and how many minutes it has. */
+const UNITS = [
+  [60, "minute", 1],
+  [60 * 24, "hour", 60],
+  [60 * 24 * 30, "day", 60 * 24],
+] as const;
+
 function RelativeTime({ iso }: { iso: string }) {
   const { i18n } = useTranslation();
   const date = new Date(iso);
   const minutes = Math.round((date.getTime() - Date.now()) / 60_000);
-  const format = new Intl.RelativeTimeFormat(i18n.language, { numeric: "auto", style: "short" });
-  const text =
-    Math.abs(minutes) < 60
-      ? format.format(minutes, "minute")
-      : Math.abs(minutes) < 60 * 24
-        ? format.format(Math.round(minutes / 60), "hour")
-        : Math.abs(minutes) < 60 * 24 * 30
-          ? format.format(Math.round(minutes / (60 * 24)), "day")
-          : date.toLocaleDateString(i18n.language);
+  const unit = UNITS.find(([upTo]) => Math.abs(minutes) < upTo);
+  const text = unit
+    ? new Intl.RelativeTimeFormat(i18n.language, { numeric: "auto", style: "short" }).format(
+        Math.round(minutes / unit[2]),
+        unit[1],
+      )
+    : date.toLocaleDateString(i18n.language);
   return (
     <time dateTime={iso} title={date.toLocaleString(i18n.language)}>
       {text}

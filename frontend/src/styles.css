@@ -189,8 +189,10 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
 .item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92rem; }
 .untitled { color: var(--muted); font-style: italic; }
 .embed-item time { grid-column: 2; color: var(--muted); font-size: 0.75rem; }
-.embed-item .rename { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); opacity: 0; padding: 5px; }
-.embed-item:hover .rename, .embed-item .rename:focus-visible { opacity: 1; }
+.rename { padding: 5px; }
+.embed-item .rename { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); opacity: 0; }
+.editable-title .rename { opacity: 0.4; }
+:is(.embed-item, .editable-title):hover .rename, .rename:focus-visible { opacity: 1; }
 .title-input { padding: 6px 9px; font-size: 0.92rem; }
 .sidebar-foot { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
 .sidebar.collapsed .sidebar-foot { flex-direction: column; margin-top: auto; }
@@ -202,8 +204,6 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
 
 .editable-title { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; }
 .editable-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.editable-title .rename { opacity: 0.4; padding: 5px; }
-.editable-title:hover .rename, .editable-title .rename:focus-visible { opacity: 1; }
 .chat-head .title-input { flex: 1; font-family: var(--serif); font-size: 1.1rem; }
 
 .empty-chat { margin: auto; display: grid; justify-items: center; gap: 14px; text-align: center; padding: 24px 8px; }
@@ -289,17 +289,13 @@ textarea { flex: 1; resize: none; }
 .chips { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .chips-wrap .chips { margin: 0; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 99px; font-size: 0.83rem; font-weight: 600; border: 0; }
-.chip.ok { background: var(--ok-soft); color: var(--ok); }
-.chip.warn { background: var(--warn-soft); color: var(--warn); }
-.chip.block { background: var(--danger-soft); color: var(--danger); }
-button.chip:hover:not(:disabled) { filter: brightness(0.97); background: inherit; }
-button.chip.warn:hover:not(:disabled) { background: var(--warn-soft); }
-button.chip.block:hover:not(:disabled) { background: var(--danger-soft); }
+/* The quality check's colours: chips, findings and callouts share them. */
+:is(.chip, .findings li, .callout).ok { background: var(--ok-soft); color: var(--ok); }
+:is(.chip, .findings li, .callout).warn { background: var(--warn-soft); color: var(--warn); }
+:is(.chip, .findings li, .callout).block { background: var(--danger-soft); color: var(--danger); }
+button.chip:hover:not(:disabled) { filter: brightness(0.97); } /* The tone rules above outrank button:hover, so it keeps its colour. */
 .findings { flex: none; list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; }
 .findings li { padding: 8px 10px; border-radius: 8px; }
-.findings li.block { background: var(--danger-soft); color: var(--danger); }
-.findings li.warn { background: var(--warn-soft); color: var(--warn); }
-.findings.ok { color: var(--ok); font-size: 0.9rem; }
 
 @media (max-width: 900px) {
   .editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 10px; }
@@ -328,9 +324,7 @@ button.chip.block:hover:not(:disabled) { background: var(--danger-soft); }
 .dialog .findings { margin: 0; }
 .callout { display: flex; gap: 9px; align-items: flex-start; margin: 0; padding: 11px 13px; border-radius: 11px; font-size: 0.93rem; }
 .callout .icon { margin-top: 1px; }
-.callout.ok { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
-.callout.warn { background: var(--warn-soft); color: var(--warn); }
-.callout.block { background: var(--danger-soft); color: var(--danger); }
+.callout.ok { font-weight: 600; }
 .callout.info { background: var(--accent-soft); color: var(--ink); }
 .callout.info .icon { color: var(--accent); }
 .checkbox { display: flex; gap: 9px; align-items: center; font-size: 0.93rem; cursor: pointer; }

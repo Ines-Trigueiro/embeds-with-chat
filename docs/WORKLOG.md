@@ -95,4 +95,15 @@ Where it pushed back on me:
   - **Glossary drift.** I kept "Copy embed code" as the label journalists see, but code identifiers now say *snippet*.
 - **Left as they are, on purpose:**
   - The translation endpoint refuses a same-language request with 409. The UI never sends one.
-  - `chat_turn` takes a `translation` flag instead of a request object. A small smell, not worth the churn yet.
+
+## 7. A `/simplify` pass over the UI overhaul
+
+Four reviewers (reuse, simplification, efficiency, altitude) went over the code. The fixes, with no change in behaviour:
+
+- **Backend:** `chat_turn`'s `translation` flag became a `translation_turn` of its own. Both share one core that streams the model's reply and stores nothing; each turn decides what to keep.
+- **Frontend:** one `Modal` for both dialogs, one `storage` helper, one `changeEmbed` PATCH, and `bySeverity` for the quality check. The versions now live only in the opened embed. The editor reads its embed once, and App remounts it on each navigation, which replaces the `editorKey`/`adopted`/`createdHere` guards. The turn list is split into small components, and Markdown is memoized while a reply streams. Dead icons, i18n keys and CSS are gone.
+- **Not done:**
+  - **Suggesting the Title in parallel with the reply.** It would cut a model round trip before the first token, but the tests pin the Title event as the first event, and the fake model answers in a fixed order.
+  - **Caching parsed datasets.** This predates the overhaul.
+  - **Typed column for the translation language.** The language is still stored in the message text; a typed column would change the API.
+  - **Nullable title column.** It needs a table-rebuild migration.

@@ -4,11 +4,17 @@ import { useTranslation } from "react-i18next";
 import type { Finding } from "./api";
 import { Icon } from "./Icon";
 
+/** Blockers stop publishing; warnings need the journalist to accept them. */
+export function bySeverity(findings: Finding[]) {
+  return {
+    blockers: findings.filter((f) => f.severity === "block"),
+    warnings: findings.filter((f) => f.severity === "warn"),
+  };
+}
+
 /** The quality check's findings for the version on screen, in the journalist's language. */
 export function Findings({ findings }: { findings: Finding[] }) {
   const { t } = useTranslation();
-  if (findings.length === 0) return <p className="findings ok">{t("quality.ok")}</p>;
-
   return (
     <ul className="findings">
       {findings.map((finding, i) => (
@@ -25,8 +31,7 @@ export function Findings({ findings }: { findings: Finding[] }) {
 export function FindingChips({ findings }: { findings: Finding[] }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const blockers = findings.filter((f) => f.severity === "block").length;
-  const warnings = findings.length - blockers;
+  const { blockers, warnings } = bySeverity(findings);
 
   if (findings.length === 0) {
     return (
@@ -38,20 +43,21 @@ export function FindingChips({ findings }: { findings: Finding[] }) {
       </div>
     );
   }
+  const chips = [
+    { severity: "block", icon: "blocker", label: "quality.chipBlock", count: blockers.length },
+    { severity: "warn", icon: "warning", label: "quality.chipWarn", count: warnings.length },
+  ] as const;
   return (
     <div className="chips-wrap">
       <div className="chips">
-        {blockers > 0 && (
-          <button className="chip block" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-            <Icon name="blocker" size={14} />
-            {t("quality.chipBlock", { count: blockers })}
-          </button>
-        )}
-        {warnings > 0 && (
-          <button className="chip warn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-            <Icon name="warning" size={14} />
-            {t("quality.chipWarn", { count: warnings })}
-          </button>
+        {chips.map(
+          ({ severity, icon, label, count }) =>
+            count > 0 && (
+              <button key={severity} className={`chip ${severity}`} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+                <Icon name={icon} size={14} />
+                {t(label, { count })}
+              </button>
+            ),
         )}
       </div>
       {open && <Findings findings={findings} />}

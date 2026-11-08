@@ -53,17 +53,25 @@ export function EditableTitle({ title, onRename }: { title: string | null; onRen
   return (
     <span className="editable-title">
       <h2 className={title ? undefined : "untitled"} title={title ?? undefined} onDoubleClick={() => setEditing(true)}>
-        {title ?? t("sidebar.untitled")}
+        {title ?? t("sidebar.new")}
       </h2>
-      <button
-        type="button"
-        className="ghost icon-only rename"
-        title={t("sidebar.rename")}
-        aria-label={t("sidebar.rename")}
-        onClick={() => setEditing(true)}
-      >
-        <Icon name="pencil" size={15} />
-      </button>
+      <RenameButton title={title} onClick={() => setEditing(true)} />
     </span>
+  );
+}
+
+/** The pencil next to a Title. */
+export function RenameButton({ title, onClick }: { title: string | null; onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      className="ghost icon-only rename"
+      title={t("sidebar.rename")}
+      aria-label={`${t("sidebar.rename")}: ${title ?? t("sidebar.new")}`}
+      onClick={onClick}
+    >
+      <Icon name="pencil" size={15} />
+    </button>
   );
 }

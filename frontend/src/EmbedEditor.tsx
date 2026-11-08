@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatMarkdown } from "./ChatMarkdown";
-import { api, type ChatEvent, type Embed, type Message, type OpenedEmbed, type Version } from "./api";
+import { api, type ChatEvent, type Embed, type Message, type OpenedEmbed } from "./api";
 import { EditableTitle } from "./EditableTitle";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Flag } from "./Flag";
-import { FindingChips } from "./Findings";
+import { bySeverity, FindingChips } from "./Findings";
 import { currentLanguage, type Language } from "./i18n";
 import { Icon } from "./Icon";
 import { LanguageSelect } from "./LanguagePicker";
@@ -21,7 +21,10 @@ const EMPTY_TURN: Turn = { role: "journalist", kind: "message", text: "", versio
 
 interface Props {
   journalist: string;
-  /** Null for a new embed: it is created when the journalist first sends or attaches something. */
+  /**
+   * The embed to open, read once: null for a new embed, which is created when the journalist
+   * first sends or attaches something. The editor then keeps working on it (no reload).
+   */
   embedId: string | null;
   /** The Title as the sidebar knows it, so a rename there shows here too. */
   title: string | null;
@@ -36,7 +39,6 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const [embed, setEmbed] = useState<OpenedEmbed | null>(null);
   const [newLanguage, setNewLanguage] = useState<Language>(currentLanguage);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [versions, setVersions] = useState<Version[]>([]);
   const [shownNumber, setShownNumber] = useState<number | null>(null);
   const [progressHtml, setProgressHtml] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -50,21 +52,18 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const [attaching, setAttaching] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const turnList = useRef<HTMLOListElement>(null);
-  const createdHere = useRef<string | null>(null);
 
   useEffect(() => {
-    // An embed this editor just created is already on screen, mid-reply: don't reload it.
-    if (embedId === null || embedId === createdHere.current) return;
+    if (embedId === null) return;
     api.openEmbed(journalist, embedId).then(
       (opened) => {
         setEmbed(opened);
         setTurns(opened.messages);
-        setVersions(opened.versions);
         setShownNumber(opened.latest_version?.number ?? null);
       },
       (e: Error) => setLoadError(e.message),
     );
-  }, [journalist, embedId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- App remounts the editor per navigation.
 
   useEffect(() => {
     // Scroll only the conversation, never the page around it.
@@ -77,7 +76,6 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
     if (embed) return embed;
     const created = await api.createEmbed(journalist, newLanguage);
     const opened = await api.openEmbed(journalist, created.id);
-    createdHere.current = created.id;
     setEmbed(opened);
     onCreated(created);
     return opened;
@@ -94,14 +92,12 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
     try {
       const { id } = await ensureEmbed();
       for await (const { event, data } of start(id)) {
-        if (event === "title") {
-          setEmbed((current) => current && { ...current, title: data.title });
-          onChanged({ id, title: data.title });
-        } else if (event === "guide") updateModelTurn((t) => ({ ...t, guides: [...t.guides, data.name] }));
+        if (event === "title") onChanged({ id, title: data.title });
+        else if (event === "guide") updateModelTurn((t) => ({ ...t, guides: [...t.guides, data.name] }));
         else if (event === "text") updateModelTurn((t) => ({ ...t, text: t.text + data.delta }));
         else if (event === "progress") setProgressHtml(data.html);
         else if (event === "version") {
-          setVersions((current) => [...current, data]);
+          setEmbed((current) => current && { ...current, versions: [...current.versions, data] });
           setShownNumber(data.number);
           updateModelTurn((t) => ({ ...t, version_number: data.number }));
           onVersion?.();
@@ -152,7 +148,6 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
 
   function published(updated: OpenedEmbed) {
     setEmbed(updated);
-    setVersions(updated.versions);
     onChanged({ id: updated.id, published: true });
   }
 
@@ -165,16 +160,17 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
       setTranslating(embed_language); // Ask first: a Translation costs a model call and a version.
       return;
     }
-    const changed = await api.setEmbedLanguage(journalist, embed.id, embed_language);
+    const changed = await api.changeEmbed(journalist, embed.id, { embed_language });
     setEmbed((current) => current && { ...current, embed_language: changed.embed_language });
   }
 
   if (loadError) return <p className="error page-message">{loadError}</p>;
-  if (embedId !== null && !embed) return <p className="hint page-message">{t("editor.loading")}</p>;
+  if (embedId !== null && !embed) return <p className="hint page-message">{t("sidebar.loading")}</p>;
 
+  const versions = embed?.versions ?? [];
   const version = versions.find((v) => v.number === shownNumber) ?? null;
-  const blocked = version?.findings.some((f) => f.severity === "block") ?? false;
-  const latestNumber = versions.length ? versions[versions.length - 1].number : null;
+  const blocked = bySeverity(version?.findings ?? []).blockers.length > 0;
+  const latestNumber = versions.at(-1)?.number ?? null;
   const shownTitle = title ?? embed?.title ?? null;
 
   return (
@@ -236,47 +232,25 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
               </div>
             </li>
           )}
-          {turns.map((turn, i) => {
-            const live = streaming && i === turns.length - 1; // The reply arriving right now.
-            if (turn.kind === "translation") {
-              const language = turn.text as Language;
-              const done = turns[i + 1]?.version_number ?? null;
-              const pending = streaming && i === turns.length - 2;
-              return (
-                <li key={i} className="turn marker">
-                  <Flag language={language} />
-                  <span className={pending ? "pulsing-text" : undefined}>
-                    {t(pending ? "editor.translatingTo" : done !== null ? "editor.translatedTo" : "editor.notTranslatedTo", {
-                      language: t(`languages.${language}`),
-                    })}
-                  </span>
-                  {done !== null && (
-                    <button className="badge" onClick={() => setShownNumber(done)}>
-                      {t("editor.version", { number: done })}
-                    </button>
-                  )}
-                </li>
-              );
-            }
-            return (
-            <li key={i} className={`turn ${turn.role}`}>
-              {turn.guides.map((guide, g) => (
-                <p key={g} className={live && !turn.text && g === turn.guides.length - 1 ? "status pulsing" : "status"}>
-                  {t("editor.readingGuide", { name: t(`guides.${guide}`, { defaultValue: guide }) })}
-                </p>
-              ))}
-              {turn.role === "model" ? <ChatMarkdown text={turn.text} /> : turn.text}
-              {live && !turn.text && turn.guides.length === 0 && <p className="status pulsing">{t("editor.thinking")}</p>}
-              {live && turn.text && progressHtml !== null && <p className="status pulsing">{t("editor.writing")}</p>}
-              {turn.version_number !== null && (
-                <button className="badge" onClick={() => setShownNumber(turn.version_number)}>
-                  {t("editor.version", { number: turn.version_number })}
-                </button>
-              )}
-              {turn.error && <p className="error">{turn.error}</p>}
-            </li>
-            );
-          })}
+          {turns.map((turn, i) =>
+            turn.kind === "translation" ? (
+              <TranslationMarker
+                key={i}
+                language={turn.text as Language}
+                pending={streaming && i === turns.length - 2}
+                done={turns[i + 1]?.version_number ?? null}
+                onShow={setShownNumber}
+              />
+            ) : (
+              <TurnItem
+                key={i}
+                turn={turn}
+                live={streaming && i === turns.length - 1}
+                writing={progressHtml !== null}
+                onShow={setShownNumber}
+              />
+            ),
+          )}
         </ol>
         {embed && embed.attachments.length > 0 && (
           <ul className="attachments" aria-label={t("attachments.heading")}>
@@ -433,5 +407,62 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
         />
       )}
     </div>
+  );
+}
+
+/** A Translation in the conversation: the journalist typed nothing, so it's a marker. */
+function TranslationMarker(props: {
+  language: Language;
+  /** Its reply is arriving right now. */
+  pending: boolean;
+  /** The version it made, if any. */
+  done: number | null;
+  onShow: (number: number) => void;
+}) {
+  const { language, pending, done, onShow } = props;
+  const { t } = useTranslation();
+  const text = pending ? "editor.translatingTo" : done !== null ? "editor.translatedTo" : "editor.notTranslatedTo";
+  return (
+    <li className="turn marker">
+      <Flag language={language} />
+      <span className={pending ? "pulsing-text" : undefined}>{t(text, { language: t(`languages.${language}`) })}</span>
+      {done !== null && <VersionBadge number={done} onShow={onShow} />}
+    </li>
+  );
+}
+
+function TurnItem(props: {
+  turn: Turn;
+  /** The reply arriving right now. */
+  live: boolean;
+  /** The work in progress is streaming into the preview. */
+  writing: boolean;
+  onShow: (number: number) => void;
+}) {
+  const { turn, live, writing, onShow } = props;
+  const { t } = useTranslation();
+  const waiting = live && !turn.text;
+  return (
+    <li className={`turn ${turn.role}`}>
+      {turn.guides.map((guide, g) => (
+        <p key={g} className={waiting && g === turn.guides.length - 1 ? "status pulsing" : "status"}>
+          {t("editor.readingGuide", { name: t(`guides.${guide}`, { defaultValue: guide }) })}
+        </p>
+      ))}
+      {turn.role === "model" ? <ChatMarkdown text={turn.text} /> : turn.text}
+      {waiting && turn.guides.length === 0 && <p className="status pulsing">{t("editor.thinking")}</p>}
+      {live && turn.text && writing && <p className="status pulsing">{t("editor.writing")}</p>}
+      {turn.version_number !== null && <VersionBadge number={turn.version_number} onShow={onShow} />}
+      {turn.error && <p className="error">{turn.error}</p>}
+    </li>
+  );
+}
+
+function VersionBadge({ number, onShow }: { number: number; onShow: (number: number) => void }) {
+  const { t } = useTranslation();
+  return (
+    <button className="badge" onClick={() => onShow(number)}>
+      {t("editor.version", { number })}
+    </button>
   );
 }

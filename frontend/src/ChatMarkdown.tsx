@@ -1,3 +1,4 @@
+import { memo } from "react";
 import Markdown, { type Components } from "react-markdown";
 
 // The model's replies render on the editor origin, so this stays strict: no raw HTML
@@ -11,8 +12,9 @@ const COMPONENTS: Components = {
   ),
 };
 
-/** A model reply in the Conversation, as light Markdown. */
-export function ChatMarkdown({ text }: { text: string }) {
+/** A model reply in the Conversation, as light Markdown. Memoized: while a reply streams,
+ * the earlier ones keep their text, so they aren't parsed again on every delta. */
+export const ChatMarkdown = memo(function ChatMarkdown({ text }: { text: string }) {
   return (
     <div className="markdown">
       <Markdown components={COMPONENTS} skipHtml disallowedElements={["img"]} unwrapDisallowed>
@@ -20,4 +22,4 @@ export function ChatMarkdown({ text }: { text: string }) {
       </Markdown>
     </div>
   );
-}
+});

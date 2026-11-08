@@ -3,32 +3,6 @@
 
 import type { Language } from "./i18n";
 
-const JOURNALIST_KEY = "embeds.journalist";
-
-export function storedJournalist(): string | null {
-  try {
-    return localStorage.getItem(JOURNALIST_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function storeJournalist(name: string): void {
-  try {
-    localStorage.setItem(JOURNALIST_KEY, name);
-  } catch {
-    // Private mode: the name lives only for this page load.
-  }
-}
-
-export function forgetJournalist(): void {
-  try {
-    localStorage.removeItem(JOURNALIST_KEY);
-  } catch {
-    // Nothing stored, nothing to forget.
-  }
-}
-
 export interface Embed {
   id: string;
   /** Null until one is suggested from the journalist's first message. */
@@ -178,11 +152,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ embed_language }),
     }),
-  rename: (journalist: string, embedId: string, title: string) =>
-    request<Embed>(journalist, `/api/embeds/${embedId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ title }),
-    }),
+  /** A new Title, embed language (with no version yet: otherwise it's a Translation), or both. */
+  changeEmbed: (journalist: string, embedId: string, changes: Partial<Pick<Embed, "title" | "embed_language">>) =>
+    request<Embed>(journalist, `/api/embeds/${embedId}`, { method: "PATCH", body: JSON.stringify(changes) }),
   publish: (journalist: string, embedId: string, number: number, acceptWarnings: boolean) =>
     request<OpenedEmbed>(
       journalist,
@@ -194,9 +166,4 @@ export const api = {
     body.append("file", file);
     return request<Attachment>(journalist, `/api/embeds/${embedId}/attachments`, { method: "POST", body });
   },
-  setEmbedLanguage: (journalist: string, embedId: string, embed_language: Language) =>
-    request<Embed>(journalist, `/api/embeds/${embedId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ embed_language }),
-    }),
 };

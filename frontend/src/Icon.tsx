@@ -15,7 +15,6 @@ const PATHS = {
   mobile: "M8 3h8v18H8zM11.5 18h1",
   sidebar: "M4 4h16v16H4zM9 4v16",
   chevronDown: "M6 9l6 6 6-6",
-  chevronRight: "M9 6l6 6-6 6",
   close: "M6 6l12 12M18 6 6 18",
   external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
   publish: "M12 16V4M7 9l5-5 5 5M5 20h14",
@@ -25,7 +24,6 @@ const PATHS = {
   menu: "M4 7h16M4 12h16M4 17h16",
   chat: "M4 5h16v11H9l-5 4V5z",
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
-  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z",
   table: "M4 5h16v14H4zM4 10h16M4 14.5h16M10 5v14",
   image: "M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.5",
 } as const;

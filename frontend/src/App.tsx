@@ -1,41 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { api, forgetJournalist, storedJournalist, storeJournalist, type Embed } from "./api";
+import { api, type Embed } from "./api";
 import { EmbedEditor } from "./EmbedEditor";
 import { JournalistPrompt } from "./JournalistPrompt";
 import { Sidebar } from "./Sidebar";
+import { readStored, writeStored } from "./storage";
 
 /** "#/embeds/<id>" opens an embed; anything else is a new, empty one. Survives a reload. */
 function embedIdFromHash(): string | null {
   return /^#\/embeds\/([\w-]+)$/.exec(window.location.hash)?.[1] ?? null;
 }
 
+const JOURNALIST_KEY = "embeds.journalist";
 const COLLAPSED_KEY = "embeds.sidebarCollapsed";
 
-function storedCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function App() {
-  const [journalist, setJournalist] = useState(storedJournalist);
+  const [journalist, setJournalist] = useState(() => readStored(JOURNALIST_KEY));
   const [embedId, setEmbedId] = useState(embedIdFromHash);
   const [embeds, setEmbeds] = useState<Embed[] | null>(null);
-  const [collapsed, setCollapsed] = useState(storedCollapsed);
+  const [collapsed, setCollapsed] = useState(() => readStored(COLLAPSED_KEY) === "1");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // A new embed gets its id on the first message; the editor that created it stays mounted.
-  const [editorKey, setEditorKey] = useState(0);
-  const adopted = useRef<string | null>(null);
+  // Each navigation opens a fresh editor. Creating an embed isn't one: see `onCreated`.
+  const [visit, setVisit] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => {
-      const id = embedIdFromHash();
-      setEmbedId(id);
-      if (id === null || id !== adopted.current) setEditorKey((k) => k + 1);
-      adopted.current = null;
+      setEmbedId(embedIdFromHash());
+      setVisit((v) => v + 1);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -48,44 +39,36 @@ export function App() {
   }, [journalist]);
 
   /** Update an embed in the sidebar: a new Title, published, … */
-  const update = useCallback((changes: Pick<Embed, "id"> & Partial<Embed>) => {
+  function update(changes: Pick<Embed, "id"> & Partial<Embed>) {
     setEmbeds((current) => current && current.map((e) => (e.id === changes.id ? { ...e, ...changes } : e)));
-  }, []);
+  }
 
-  const onCreated = useCallback(
-    (embed: Embed) => {
-      setEmbeds((current) => [embed, ...(current ?? []).filter((e) => e.id !== embed.id)]);
-      adopted.current = embed.id;
-      window.location.hash = `#/embeds/${embed.id}`;
-    },
-    [],
-  );
+  /** The editor that created the embed stays on screen, mid-reply: no hashchange, no new visit. */
+  function onCreated(embed: Embed) {
+    setEmbeds((current) => [embed, ...(current ?? []).filter((e) => e.id !== embed.id)]);
+    setEmbedId(embed.id);
+    history.replaceState(null, "", `#/embeds/${embed.id}`);
+  }
 
   async function rename(id: string, title: string) {
     if (!journalist) return;
     try {
-      update(await api.rename(journalist, id, title));
+      update(await api.changeEmbed(journalist, id, { title }));
     } catch {
       // Keep the old title; the sidebar still shows it.
     }
   }
 
   function toggleCollapsed() {
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1");
-      } catch {
-        // Not remembered; still toggled.
-      }
-      return !c;
-    });
+    writeStored(COLLAPSED_KEY, collapsed ? "0" : "1");
+    setCollapsed(!collapsed);
   }
 
   if (!journalist) {
     return (
       <JournalistPrompt
         onSubmit={(name) => {
-          storeJournalist(name);
+          writeStored(JOURNALIST_KEY, name);
           setJournalist(name);
         }}
       />
@@ -103,7 +86,7 @@ export function App() {
         onToggle={() => (drawerOpen ? setDrawerOpen(false) : toggleCollapsed())}
         onRename={rename}
         onSwitchJournalist={() => {
-          forgetJournalist();
+          writeStored(JOURNALIST_KEY, null);
           setJournalist(null);
           window.location.hash = "#/"; // The next journalist starts on a new embed, not this one.
         }}
@@ -112,7 +95,7 @@ export function App() {
       <div className="scrim" onClick={() => setDrawerOpen(false)} />
       <main className="main">
         <EmbedEditor
-          key={editorKey}
+          key={visit}
           journalist={journalist}
           embedId={embedId}
           title={current?.title ?? null}

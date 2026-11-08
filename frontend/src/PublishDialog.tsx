@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, type OpenedEmbed, type Version } from "./api";
-import { Findings } from "./Findings";
+import { bySeverity, Findings } from "./Findings";
 import { Icon, type IconName } from "./Icon";
+import { Modal } from "./Modal";
 
 interface Props {
   journalist: string;
@@ -20,24 +21,14 @@ interface Props {
  */
 export function PublishDialog({ journalist, embed, version, onClose, onPublished }: Props) {
   const { t } = useTranslation();
-  const dialog = useRef<HTMLDialogElement>(null);
   const [accepted, setAccepted] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [justPublished, setJustPublished] = useState(false);
 
-  useEffect(() => {
-    // Modal: focus stays inside, and Escape closes it. Unmounting removes it, so no cleanup.
-    const element = dialog.current;
-    if (!element || element.open) return;
-    element.showModal();
-    // Start on the main action, not on the close button the browser would pick.
-    element.querySelector<HTMLElement>(".copy-snippet, .dialog-actions .primary:enabled")?.focus();
-  }, []);
-
-  const blockers = version.findings.filter((f) => f.severity === "block");
-  const warnings = version.findings.filter((f) => f.severity === "warn");
+  const { blockers, warnings } = bySeverity(version.findings);
   const canPublish = blockers.length === 0 && (warnings.length === 0 || accepted);
+  const status = blockers.length > 0 ? "block" : warnings.length > 0 ? "warn" : "ok";
 
   async function publish() {
     setPublishing(true);
@@ -45,7 +36,7 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
     try {
       onPublished(await api.publish(journalist, embed.id, version.number, warnings.length > 0));
       setJustPublished(true);
-      requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>(".copy-snippet")?.focus());
+      requestAnimationFrame(() => document.querySelector<HTMLElement>("dialog .copy-snippet")?.focus());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -55,46 +46,20 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
 
   const showCode = version.published || justPublished;
   return (
-    <dialog
-      ref={dialog}
-      className="dialog"
-      aria-labelledby="publish-title"
+    <Modal
+      title={showCode ? t("publish.codeTitle") : t("publish.dialogTitle", { number: version.number })}
+      closeLabel={t("publish.close")}
       onClose={onClose}
-      onClick={(e) => e.target === dialog.current && dialog.current.close()} // A click on the backdrop.
     >
-      <div className="dialog-head">
-        <h2 id="publish-title">
-          {showCode ? t("publish.codeTitle") : t("publish.dialogTitle", { number: version.number })}
-        </h2>
-        <button
-          className="ghost icon-only"
-          title={t("publish.close")}
-          aria-label={t("publish.close")}
-          onClick={() => dialog.current?.close()}
-        >
-          <Icon name="close" />
-        </button>
-      </div>
-
       {showCode && embed.delivery ? (
         <ArticleSteps embed={embed} version={version} justPublished={justPublished} />
       ) : (
-        <div className="dialog-body">
-          {blockers.length > 0 ? (
-            <p className="callout block">
-              <Icon name="blocker" /> {t("publish.blocked")}
-            </p>
-          ) : warnings.length > 0 ? (
-            <p className="callout warn">
-              <Icon name="warning" /> {t("publish.warnings")}
-            </p>
-          ) : (
-            <p className="callout ok">
-              <Icon name="check" /> {t("publish.ready")}
-            </p>
-          )}
+        <>
+          <p className={`callout ${status}`}>
+            <Icon name={STATUS[status].icon} /> {t(STATUS[status].text)}
+          </p>
           {version.findings.length > 0 && <Findings findings={version.findings} />}
-          {blockers.length === 0 && warnings.length > 0 && (
+          {status === "warn" && (
             <label className="checkbox">
               <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
               {t("publish.acceptWarnings")}
@@ -102,17 +67,23 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
           )}
           {error && <p className="error">{error}</p>}
           <div className="dialog-actions">
-            <button onClick={() => dialog.current?.close()}>{t("publish.cancel")}</button>
+            <button onClick={onClose}>{t("publish.cancel")}</button>
             <button className="primary" disabled={!canPublish || publishing} onClick={publish}>
               <Icon name="publish" />
               {publishing ? t("publish.publishing") : t("publish.confirm")}
             </button>
           </div>
-        </div>
+        </>
       )}
-    </dialog>
+    </Modal>
   );
 }
+
+const STATUS = {
+  block: { icon: "blocker", text: "publish.blocked" },
+  warn: { icon: "warning", text: "publish.warnings" },
+  ok: { icon: "check", text: "publish.ready" },
+} as const;
 
 function ArticleSteps({ embed, version, justPublished }: { embed: OpenedEmbed; version: Version; justPublished: boolean }) {
   const { t } = useTranslation();
@@ -125,7 +96,7 @@ function ArticleSteps({ embed, version, justPublished }: { embed: OpenedEmbed; v
   const testArticle = `/test-article?${new URLSearchParams({ embed: embed.id })}`;
 
   return (
-    <div className="dialog-body">
+    <>
       {justPublished && (
         <p className="callout ok">
           <Icon name="check" /> {t("publish.justPublished", { number: version.number })}
@@ -166,7 +137,7 @@ function ArticleSteps({ embed, version, justPublished }: { embed: OpenedEmbed; v
           <CopyField label={t("publish.urlLatest")} value={delivery.embed_url} />
         </div>
       </details>
-    </div>
+    </>
   );
 }
 

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field, StringConstraints
 
-from embeds.chat import ChatEvent, chat_turn
+from embeds.chat import ChatEvent, chat_turn, translation_turn
 from embeds.config import Settings
 from embeds.datasets import (
     DatasetError,
@@ -330,11 +330,9 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
             raise HTTPException(status_code=409, detail="There is no version to translate yet.")
         if body.embed_language == embed.embed_language:
             raise HTTPException(status_code=409, detail="The embed is already in that language.")
-        # Stored only once the translated version exists: a failed one changes nothing.
-        embed = replace(embed, embed_language=body.embed_language)
         return streamed(
-            chat_turn(
-                store, chat_model, embed, "", body.language, settings.embed_origin, translation=True
+            translation_turn(
+                store, chat_model, embed, body.embed_language, body.language, settings.embed_origin
             )
         )
 
