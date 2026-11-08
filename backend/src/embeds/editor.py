@@ -185,8 +185,8 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         return embed
 
     @app.post("/api/embeds", status_code=201)
-    def create_embed(body: NewEmbed, journalist: Journalist) -> EmbedOut:
-        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language))
+    def create_embed(body: NewEmbed, journalist: Journalist) -> OpenedEmbed:
+        return opened(store.create_embed(journalist, body.title, body.embed_language))
 
     @app.get("/api/embeds")
     def my_embeds(journalist: Journalist) -> list[EmbedOut]:

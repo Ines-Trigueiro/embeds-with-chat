@@ -20,6 +20,17 @@ def test_journalist_sees_embed_they_created_under_my_embeds(editor: TestClient) 
     assert listed.json()[0]["id"] == created.json()["id"]
 
 
+def test_creating_an_embed_returns_it_opened(editor: TestClient) -> None:
+    created = editor.post("/api/embeds", json={"title": "Valgquiz"}, headers=as_journalist("kari"))
+
+    opened = editor.get(f"/api/embeds/{created.json()['id']}", headers=as_journalist("kari"))
+    assert created.status_code == 201
+    assert created.json() == opened.json()
+    assert created.json()["messages"] == []
+    assert created.json()["versions"] == []
+    assert created.json()["progress_frame_url"].endswith("/progress-frame")
+
+
 def test_my_embeds_lists_only_the_requesting_journalists_embeds(editor: TestClient) -> None:
     editor.post("/api/embeds", json={"title": "Valgquiz"}, headers=as_journalist("kari"))
     editor.post("/api/embeds", json={"title": "Sykkelkart"}, headers=as_journalist("ola"))

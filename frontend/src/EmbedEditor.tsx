@@ -75,10 +75,9 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   async function ensureEmbed(): Promise<OpenedEmbed> {
     if (embed) return embed;
     const created = await api.createEmbed(journalist, newLanguage);
-    const opened = await api.openEmbed(journalist, created.id);
-    setEmbed(opened);
+    setEmbed(created);
     onCreated(created);
-    return opened;
+    return created;
   }
 
   function updateModelTurn(update: (turn: Turn) => Turn) {
