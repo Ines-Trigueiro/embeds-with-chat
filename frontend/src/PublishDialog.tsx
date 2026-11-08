@@ -1,25 +1,26 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, type OpenedEmbed, type Version } from "./api";
+import type { OpenedEmbed, Version } from "./api";
 import { bySeverity, Findings } from "./Findings";
 import { Icon, type IconName } from "./Icon";
 import { Modal } from "./Modal";
+import type { Workspace } from "./Workspace";
 
 interface Props {
-  journalist: string;
+  /** Publishes; the embed and Version shown here are its open ones. */
+  workspace: Workspace;
   embed: OpenedEmbed;
   /** The version on screen: the one to publish, and the one "pinned" code refers to. */
   version: Version;
   onClose: () => void;
-  onPublished: (updated: OpenedEmbed) => void;
 }
 
 /**
  * Publishing, then getting the embed into an article, for journalists who aren't developers:
  * the quality check first, then one button that copies the code and three plain steps.
  */
-export function PublishDialog({ journalist, embed, version, onClose, onPublished }: Props) {
+export function PublishDialog({ workspace, embed, version, onClose }: Props) {
   const { t } = useTranslation();
   const [accepted, setAccepted] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -34,7 +35,7 @@ export function PublishDialog({ journalist, embed, version, onClose, onPublished
     setPublishing(true);
     setError(null);
     try {
-      onPublished(await api.publish(journalist, embed.id, version.number, warnings.length > 0));
+      await workspace.publish(version.number, warnings.length > 0);
       setJustPublished(true);
       requestAnimationFrame(() => document.querySelector<HTMLElement>("dialog .copy-snippet")?.focus());
     } catch (e) {

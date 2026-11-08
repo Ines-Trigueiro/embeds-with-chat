@@ -1,18 +1,16 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Embed } from "./api";
 import { RenameButton, TitleInput } from "./EditableTitle";
 import { Icon } from "./Icon";
 import { LanguagePicker } from "./LanguagePicker";
+import type { Workspace } from "./Workspace";
 
 interface Props {
   journalist: string;
-  embeds: Embed[] | null;
-  currentId: string | null;
+  workspace: Workspace;
   collapsed: boolean;
   onToggle: () => void;
-  onRename: (embedId: string, title: string) => void;
   onSwitchJournalist: () => void;
   /** Phones: the sidebar is a drawer, closed after picking an embed. */
   onNavigate: () => void;
@@ -20,7 +18,8 @@ interface Props {
 
 /** The journalist's embeds, like the chat list of an LLM app. */
 export function Sidebar(props: Props) {
-  const { journalist, embeds, currentId, collapsed, onToggle, onRename, onSwitchJournalist, onNavigate } = props;
+  const { journalist, workspace, collapsed, onToggle, onSwitchJournalist, onNavigate } = props;
+  const { embeds, openId: currentId } = useSyncExternalStore(workspace.subscribe, workspace.getState);
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -86,7 +85,7 @@ export function Sidebar(props: Props) {
                       initial={embed.title}
                       onDone={(title) => {
                         setRenaming(null);
-                        if (title) onRename(embed.id, title);
+                        if (title) workspace.rename(embed.id, title);
                       }}
                     />
                   ) : (

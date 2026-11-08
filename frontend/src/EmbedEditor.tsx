@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatMarkdown } from "./ChatMarkdown";
-import { api, type Embed } from "./api";
 import { EditableTitle } from "./EditableTitle";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Flag } from "./Flag";
@@ -12,31 +11,19 @@ import { Icon } from "./Icon";
 import { LanguageSelect } from "./LanguagePicker";
 import { Preview, type Device } from "./Preview";
 import { PublishDialog } from "./PublishDialog";
-import { Workspace, type MessageTurn, type TranslationMarker as Marker } from "./Workspace";
+import type { MessageTurn, TranslationMarker as Marker, Workspace } from "./Workspace";
 
 interface Props {
-  journalist: string;
-  /**
-   * The embed to open, read once: null for a new embed, which is created when the journalist
-   * first sends or attaches something. The editor then keeps working on it (no reload).
-   */
-  embedId: string | null;
-  /** The Title as the sidebar knows it, so a rename there shows here too. */
-  title: string | null;
+  /** Shows the open embed; App remounts the editor per navigation, so its UI state starts fresh. */
+  workspace: Workspace;
   onOpenSidebar: () => void;
-  onCreated: (embed: Embed) => void;
-  onChanged: (changes: Pick<Embed, "id"> & Partial<Embed>) => void;
-  onRename: (title: string) => void;
 }
 
-export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreated, onChanged, onRename }: Props) {
+export function EmbedEditor({ workspace, onOpenSidebar }: Props) {
   const { t } = useTranslation();
-  // App remounts the editor per navigation, so one Workspace per mount is one per embed.
-  const [workspace] = useState(
-    () => new Workspace(api, journalist, currentLanguage(), { created: onCreated, changed: onChanged }),
-  );
-  const { embed, newEmbedLanguage, loadError, turns, shownNumber, progressHtml, streaming, attaching, attachError } =
-    useSyncExternalStore(workspace.subscribe, workspace.getState);
+  const state = useSyncExternalStore(workspace.subscribe, workspace.getState);
+  const { openId, embed, newEmbedLanguage, loadError, turns, shownNumber, progressHtml, streaming } = state;
+  const { attaching, attachError } = state;
   const [input, setInput] = useState("");
   const [device, setDevice] = useState<Device>("mobile");
   const [pane, setPane] = useState<"chat" | "preview">("chat"); // Phones show one at a time.
@@ -44,10 +31,6 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const [translating, setTranslating] = useState<Language | null>(null); // Asking to translate.
   const fileInput = useRef<HTMLInputElement>(null);
   const turnList = useRef<HTMLOListElement>(null);
-
-  useEffect(() => {
-    if (embedId !== null) workspace.open(embedId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- App remounts the editor per navigation.
 
   useEffect(() => {
     // Scroll only the conversation, never the page around it.
@@ -75,13 +58,12 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
   const showVersion = (number: number) => workspace.show(number);
 
   if (loadError) return <p className="error page-message">{loadError}</p>;
-  if (embedId !== null && !embed) return <p className="hint page-message">{t("sidebar.loading")}</p>;
+  if (openId !== null && !embed) return <p className="hint page-message">{t("sidebar.loading")}</p>;
 
   const versions = embed?.versions ?? [];
   const version = versions.find((v) => v.number === shownNumber) ?? null;
   const blocked = bySeverity(version?.findings ?? []).blockers.length > 0;
   const latestNumber = versions.at(-1)?.number ?? null;
-  const shownTitle = title ?? embed?.title ?? null;
 
   return (
     <div className={`editor show-${pane}`}>
@@ -113,7 +95,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
       <section className="chat card">
         <div className="chat-head">
           {embed ? (
-            <EditableTitle title={shownTitle} onRename={onRename} />
+            <EditableTitle title={embed.title} onRename={(title) => workspace.rename(embed.id, title)} />
           ) : (
             <h2 className="untitled">{t("sidebar.new")}</h2>
           )}
@@ -296,13 +278,7 @@ export function EmbedEditor({ journalist, embedId, title, onOpenSidebar, onCreat
         </ConfirmDialog>
       )}
       {publishing && embed && version && (
-        <PublishDialog
-          journalist={journalist}
-          embed={embed}
-          version={version}
-          onClose={() => setPublishing(false)}
-          onPublished={(updated) => workspace.published(updated)}
-        />
+        <PublishDialog workspace={workspace} embed={embed} version={version} onClose={() => setPublishing(false)} />
       )}
     </div>
   );
