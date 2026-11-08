@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from conftest import FakeChatModel, as_journalist, chat, doc, new_embed
+from conftest import FakeChatModel, as_journalist, chat, doc, new_embed, only
 
 KARI = as_journalist("kari")
 
@@ -157,3 +157,39 @@ def test_the_embed_list_shows_which_embeds_are_published(editor: TestClient, fak
 
     assert {e["id"]: e["published"] for e in listed}[published] is True
     assert sorted(e["published"] for e in listed) == [False, True]
+
+
+def test_readers_see_only_published_versions_even_when_an_earlier_one_is_pinned(
+    editor: TestClient, embed_origin: TestClient, fake_model: FakeChatModel
+) -> None:
+    embed_id = embed_with_versions(editor, fake_model, "ONE", "TWO", "THREE")
+    publish(editor, embed_id, 2)
+
+    assert "TWO" in embed_origin.get(f"/e/{embed_id}").text  # not THREE, the newest Version
+    assert "TWO" in embed_origin.get(f"/e/{embed_id}/v/2").text
+    assert embed_origin.get(f"/e/{embed_id}/v/1").status_code == 404  # older, never published
+    assert embed_origin.get(f"/e/{embed_id}/v/9").status_code == 404  # no such Version
+    assert embed_origin.get(f"/e/{new_embed(editor)}/v/2").status_code == 404  # another embed
+
+
+def test_renaming_a_published_embed_keeps_it_published(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    embed_id = embed_with_versions(editor, fake_model, "ONE")
+    publish(editor, embed_id, 1)
+
+    renamed = editor.patch(f"/api/embeds/{embed_id}", json={"title": "Nytt"}, headers=KARI)
+
+    assert renamed.json()["published"] is True
+
+
+def test_a_new_version_is_not_published_until_the_journalist_publishes_it(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    embed_id = embed_with_versions(editor, fake_model, "ONE")
+    publish(editor, embed_id, 1)
+    fake_model.replies.append(f"```html\n{doc('TWO')}\n```")
+
+    [version] = only(chat(editor, embed_id, "Endre"), "version")
+
+    assert (version["number"], version["published"], version["delivery"]) == (2, False, None)

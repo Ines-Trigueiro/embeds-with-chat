@@ -88,6 +88,7 @@ class Embed:
     title: str | None  # None until one is suggested from the journalist's first message.
     created_at: str
     embed_language: Language
+    published: bool = False  # Whether any of its versions is published.
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ class Version:
     number: int
     html: str
     created_at: str
+    published: bool = False
 
 
 @dataclass(frozen=True)
@@ -128,8 +130,23 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+# Rows come back with their publication state, so callers never look it up separately.
+EMBEDS = (
+    "SELECT e.*, EXISTS (SELECT 1 FROM publications p WHERE p.embed_id = e.id) AS published"
+    " FROM embeds e"
+)
+VERSIONS = (
+    "SELECT v.*, p.number IS NOT NULL AS published"
+    " FROM versions v LEFT JOIN publications p USING (embed_id, number)"
+)
+
+
 def _embed(row: sqlite3.Row) -> Embed:
-    return Embed(**{**dict(row), "title": row["title"] or None})
+    return Embed(**{**dict(row), "title": row["title"] or None, "published": bool(row["published"])})
+
+
+def _version(row: sqlite3.Row) -> Version:
+    return Version(**{**dict(row), "published": bool(row["published"])})
 
 
 def new_embed_id() -> str:
@@ -181,7 +198,7 @@ class Store:
     def embeds_of(self, journalist: str) -> list[Embed]:
         with self._connect() as db:
             rows = db.execute(
-                "SELECT * FROM embeds WHERE journalist = ? ORDER BY created_at DESC",
+                f"{EMBEDS} WHERE e.journalist = ? ORDER BY e.created_at DESC",
                 (journalist,),
             ).fetchall()
         return [_embed(row) for row in rows]
@@ -190,7 +207,7 @@ class Store:
         """The embed, but only if this journalist owns it."""
         with self._connect() as db:
             row = db.execute(
-                "SELECT * FROM embeds WHERE id = ? AND journalist = ?", (embed_id, journalist)
+                f"{EMBEDS} WHERE e.id = ? AND e.journalist = ?", (embed_id, journalist)
             ).fetchone()
         return _embed(row) if row else None
 
@@ -241,63 +258,39 @@ class Store:
     def version(self, embed_id: str, number: int) -> Version | None:
         with self._connect() as db:
             row = db.execute(
-                "SELECT * FROM versions WHERE embed_id = ? AND number = ?", (embed_id, number)
+                f"{VERSIONS} WHERE v.embed_id = ? AND v.number = ?", (embed_id, number)
             ).fetchone()
-        return Version(**row) if row else None
+        return _version(row) if row else None
 
     def latest_version(self, embed_id: str) -> Version | None:
         with self._connect() as db:
             row = db.execute(
-                "SELECT * FROM versions WHERE embed_id = ? ORDER BY number DESC LIMIT 1",
-                (embed_id,),
+                f"{VERSIONS} WHERE v.embed_id = ? ORDER BY v.number DESC LIMIT 1", (embed_id,)
             ).fetchone()
-        return Version(**row) if row else None
+        return _version(row) if row else None
 
     def versions_of(self, embed_id: str) -> list[Version]:
         with self._connect() as db:
             rows = db.execute(
-                "SELECT * FROM versions WHERE embed_id = ? ORDER BY number", (embed_id,)
+                f"{VERSIONS} WHERE v.embed_id = ? ORDER BY v.number", (embed_id,)
             ).fetchall()
-        return [Version(**row) for row in rows]
+        return [_version(row) for row in rows]
+
+    def version_for_readers(self, embed_id: str, number: int | None = None) -> Version | None:
+        """The latest published version, or the pinned one if it is published (ADR 0003)."""
+        with self._connect() as db:
+            row = db.execute(
+                f"{VERSIONS} WHERE v.embed_id = ? AND p.number IS NOT NULL"
+                " AND (? IS NULL OR v.number = ?) ORDER BY v.number DESC LIMIT 1",
+                (embed_id, number, number),
+            ).fetchone()
+        return _version(row) if row else None
 
     def publish(self, embed_id: str, number: int) -> None:
         with self._connect() as db:
             db.execute(
                 "INSERT OR IGNORE INTO publications VALUES (?, ?, ?)", (embed_id, number, _now())
             )
-
-    def published_embed_ids(self, journalist: str) -> set[str]:
-        """Which of this journalist's embeds have at least one published version."""
-        with self._connect() as db:
-            rows = db.execute(
-                "SELECT DISTINCT p.embed_id FROM publications p"
-                " JOIN embeds e ON e.id = p.embed_id WHERE e.journalist = ?",
-                (journalist,),
-            ).fetchall()
-        return {row["embed_id"] for row in rows}
-
-    def published_numbers(self, embed_id: str) -> set[int]:
-        with self._connect() as db:
-            rows = db.execute(
-                "SELECT number FROM publications WHERE embed_id = ?", (embed_id,)
-            ).fetchall()
-        return {row["number"] for row in rows}
-
-    def newest_published_version(self, embed_id: str) -> Version | None:
-        return self._published(embed_id, "ORDER BY v.number DESC LIMIT 1")
-
-    def published_version(self, embed_id: str, number: int) -> Version | None:
-        """The version, but only if it is published."""
-        return self._published(embed_id, "AND v.number = ?", number)
-
-    def _published(self, embed_id: str, condition: str, *args: int) -> Version | None:
-        query = (
-            "SELECT v.* FROM versions v JOIN publications p USING (embed_id, number)"
-            f" WHERE v.embed_id = ? {condition}"
-        )
-        with self._connect() as db:
-            row = db.execute(query, (embed_id, *args)).fetchone()
-        return Version(**row) if row else None
 
     def add_attachment(
         self, embed_id: str, kind: AttachmentKind, name: str, media_type: str, content: bytes

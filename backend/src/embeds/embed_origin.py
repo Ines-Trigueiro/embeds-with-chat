@@ -35,12 +35,12 @@ def create_embed_app(settings: Settings) -> FastAPI:
     @app.get("/e/{embed_id}")
     def latest_published(embed_id: str) -> Response:
         """What the Snippet shows by default: the newest published version."""
-        return serve(store.newest_published_version(embed_id))
+        return serve(store.version_for_readers(embed_id))
 
     @app.get("/e/{embed_id}/v/{number}")
     def pinned(embed_id: str, number: int) -> Response:
         """One version, pinned; only if it is published."""
-        return serve(store.published_version(embed_id, number))
+        return serve(store.version_for_readers(embed_id, number))
 
     @app.get("/attachments/{embed_id}/{attachment_id}")
     def attached_image(embed_id: str, attachment_id: str) -> Response:

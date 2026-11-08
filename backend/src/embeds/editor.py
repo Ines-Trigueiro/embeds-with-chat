@@ -81,13 +81,13 @@ class EmbedOut(BaseModel):
     published: bool  # Whether any version is published.
 
     @classmethod
-    def of(cls, embed: Embed, published: bool) -> Self:
+    def of(cls, embed: Embed) -> Self:
         return cls(
             id=embed.id,
             title=embed.title,
             created_at=embed.created_at,
             embed_language=embed.embed_language,
-            published=published,
+            published=embed.published,
         )
 
 
@@ -201,28 +201,27 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     def quality_findings(version: Version) -> list[Finding]:
         return check(without_dataset_contents(version.html), origin)
 
-    def version_out(version: Version, published: bool) -> VersionOut:
+    def version_out(version: Version) -> VersionOut:
         embed_id, number = version.embed_id, version.number
         return VersionOut(
             number=number,
             created_at=version.created_at,
             preview_url=previews.url(embed_id, number),
-            published=published,
-            delivery=delivery(embed_id, number) if published else None,
+            published=version.published,
+            delivery=delivery(embed_id, number) if version.published else None,
             findings=[FindingOut.of(f) for f in quality_findings(version)],
         )
 
     def opened(embed: Embed) -> OpenedEmbed:
-        published = store.published_numbers(embed.id)
-        versions = [version_out(v, v.number in published) for v in store.versions_of(embed.id)]
+        versions = [version_out(v) for v in store.versions_of(embed.id)]
         return OpenedEmbed(
-            **EmbedOut.of(embed, bool(published)).model_dump(),
+            **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed.id)],
             attachments=[AttachmentOut.of(a, origin) for a in store.attachments_of(embed.id)],
             versions=versions,
             latest_version=versions[-1] if versions else None,
             progress_frame_url=f"{origin}/progress-frame",
-            delivery=delivery(embed.id) if published else None,
+            delivery=delivery(embed.id) if embed.published else None,
         )
 
     def owned_embed(embed_id: str, journalist: str) -> Embed:
@@ -233,12 +232,11 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
 
     @app.post("/api/embeds", status_code=201)
     def create_embed(body: NewEmbed, journalist: Journalist) -> EmbedOut:
-        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language), False)
+        return EmbedOut.of(store.create_embed(journalist, body.title, body.embed_language))
 
     @app.get("/api/embeds")
     def my_embeds(journalist: Journalist) -> list[EmbedOut]:
-        published = store.published_embed_ids(journalist)
-        return [EmbedOut.of(embed, embed.id in published) for embed in store.embeds_of(journalist)]
+        return [EmbedOut.of(embed) for embed in store.embeds_of(journalist)]
 
     @app.get("/api/embeds/{embed_id}")
     def open_embed(embed_id: str, journalist: Journalist) -> OpenedEmbed:
@@ -261,7 +259,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
                 detail={"findings": [FindingOut.of(f).model_dump() for f in findings]},
             )
         store.publish(embed_id, number)
-        return opened(embed)
+        return opened(replace(embed, published=True))
 
     @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
     async def attach(embed_id: str, file: UploadFile, journalist: Journalist) -> AttachmentOut:
@@ -298,13 +296,13 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         if body.title is not None:
             store.set_title(embed_id, body.title)
             embed = replace(embed, title=body.title)
-        return EmbedOut.of(embed, bool(store.published_numbers(embed_id)))
+        return EmbedOut.of(embed)
 
     def streamed(turn: AsyncIterator[ChatEvent]) -> StreamingResponse:
         async def server_sent_events() -> AsyncIterator[str]:
             async for event, data in turn:
                 if isinstance(data, Version):
-                    payload = version_out(data, published=False).model_dump()
+                    payload = version_out(data).model_dump()
                 else:
                     payload = data
                 yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
