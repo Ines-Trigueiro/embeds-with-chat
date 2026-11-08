@@ -55,7 +55,14 @@ async def journalist_message(
         yield event
     version = store.record_turn(
         embed.id,
-        TurnRecord(content, "message", reply.text, tuple(reply.guides), reply.html, title),
+        TurnRecord(
+            request=content,
+            kind="message",
+            reply=reply.text,
+            guides=tuple(reply.guides),
+            html=reply.html,
+            title=title,
+        ),
     )
     for event in _ending(reply, version):
         yield event
@@ -99,7 +106,12 @@ async def _translation(
         reply.text = reply.text or NO_TRANSLATION
     else:
         record = TurnRecord(
-            language, "translation", reply.text, tuple(reply.guides), reply.html, None, language
+            request=language,
+            kind="translation",
+            reply=reply.text,
+            guides=tuple(reply.guides),
+            html=reply.html,
+            embed_language=language,
         )
         version = store.record_turn(embed.id, record)
     for event in _ending(reply, version):

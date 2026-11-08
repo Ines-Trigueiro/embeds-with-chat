@@ -146,7 +146,6 @@ export const api = {
   openEmbed: (journalist: string, embedId: string) =>
     request<OpenedEmbed>(journalist, `/api/embeds/${embedId}`),
   myEmbeds: (journalist: string) => request<Embed[]>(journalist, "/api/embeds"),
-  /** Without a title: the server suggests one from the first message. */
   /** Create an embed and return it opened, so a new embed needs no separate open request. */
   createEmbed: (journalist: string, embed_language: Language) =>
     request<OpenedEmbed>(journalist, "/api/embeds", {

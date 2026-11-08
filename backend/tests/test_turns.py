@@ -2,12 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from conftest import FailsMidStream, FakeChatModel, as_journalist, chat, doc, new_embed, only, translate
-
-
-def opened(editor: TestClient, embed_id: str) -> dict:  # type: ignore[type-arg]
-    response = editor.get(f"/api/embeds/{embed_id}", headers=as_journalist("kari"))
-    return response.json()  # type: ignore[no-any-return]
+from conftest import FailsMidStream, FakeChatModel, as_journalist, chat, doc, new_embed, only, opened, translate
 
 
 def test_a_reply_that_fails_mid_stream_leaves_the_conversation_its_events_implied(

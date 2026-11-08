@@ -104,9 +104,9 @@ uv run mypy && uv run mypy tests     # strict typing
 - **The quality check** has its own rule-by-rule tests.
 - **One browser test** (`tests/test_reader_isolation.py`) publishes a deliberately hostile embed. In Chromium it proves the embed can't read the article's cookie or DOM, open popups or redirect the reader, and that the iframe sizes itself. It's skipped if Chromium isn't installed.
 
-**Frontend typecheck:**
+**Frontend typecheck and tests** (the Docker build runs the tests too):
 ```sh
-cd frontend && npm install && npm run typecheck
+cd frontend && npm install && npm run typecheck && npm test
 ```
 
 ## Development without Docker
@@ -127,7 +127,8 @@ cd frontend && npm install && npm run dev
 backend/src/embeds/
   editor.py         editor origin: the journalist's API, the built frontend, /test-article
   embed_origin.py   embed origin: published embeds, signed previews, loader.js, images
-  chat.py           one chat turn: guide tool loop, streaming events, creating a version
+  turns.py          a turn's rules, and recording the finished turn in one transaction
+  chat.py           the model's reply: guide tool loop and streaming events; records nothing
   titles.py         the title suggested from the first message
   languages.py      chat and embed languages; <html lang>; the translation request
   context.py        what the model sees each turn
@@ -138,7 +139,10 @@ backend/src/embeds/
   datasets.py       parsing spreadsheets, injecting their rows into versions
   delivery.py       snippet, embed URLs, loader.js, resize script, test article
   previews.py       signed, expiring preview URLs for unpublished versions
-frontend/src/       React + TypeScript; i18n in i18n.ts
+  version_view.py   what the journalist sees about each version, and the publish decision
+frontend/src/
+  Workspace.ts      the journalist's embeds, the open one and its conversation (no React)
+  *.tsx             React views that render the Workspace; i18n in i18n.ts
 ```
 
 ## Assumptions

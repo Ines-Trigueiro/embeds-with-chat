@@ -107,3 +107,30 @@ Four reviewers (reuse, simplification, efficiency, altitude) went over the code.
   - **Caching parsed datasets.** This predates the overhaul.
   - **Typed column for the translation language.** The language is still stored in the message text; a typed column would change the API.
   - **Nullable title column.** It needs a table-rebuild migration.
+
+## 8. Deepening the modules (spec #18, tickets #19–#25)
+
+An architecture review found five deepening candidates. The spec merged the two frontend candidates into one **Workspace** module, which gives two test seams: HTTP on the backend, and the Workspace with a fake API client on the frontend.
+
+The tickets were built by agents in parallel worktrees where the blocking edges allowed it: #19, #21 and #22 first, then #20, then #23 → #24 → #25.
+
+- **Store** (#19): one lookup for the Version readers may see, and Versions and embeds carry their published state.
+- **Version view** (#20): a module that owns the Version view and the publish gate.
+- **Turn recording** (#22): a module that records each turn in one transaction. The Title is still announced first, but it is saved with the rest of the turn.
+- **Language change** (#21): the server refuses a direct Embed language change once a Version exists.
+- **Creating an embed** (#23): returns it opened.
+- **Workspace** (#24, #25): a plain TypeScript module that owns the Conversation and the embed metadata. React only renders it. Vitest 3.2.7 is pinned, and the Docker build runs the tests.
+
+**Fixed after review:**
+- the stale README layout;
+- tests not run in the container;
+- a duplicated test helper;
+- positional `TurnRecord` arguments;
+- the publish outcome tested twice in the route;
+- no check that creating needs no second request;
+- a Translation the journalist left mid-stream not updating the list's Embed language.
+
+**Left as they are:**
+- A PATCH with both a title and a new Embed language on an embed with a Version is refused as a whole. The UI never sends both.
+- ADR 0004's rule is checked in three places: the PATCH, the Translation preconditions, and the Workspace. Each guards a different entry point.
+- `npm audit` reports advisories in dev-only packages (Vite 7.0–7.3.6, Vitest's tinypool and mocker). Production dependencies report none.

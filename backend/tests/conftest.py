@@ -139,6 +139,12 @@ def load_guide(name: str, call_id: str = "call-1") -> AIMessage:
     )
 
 
+def opened(editor: TestClient, embed_id: str) -> dict:  # type: ignore[type-arg]
+    """The embed as the editor shows it: GET /api/embeds/{id}."""
+    response = editor.get(f"/api/embeds/{embed_id}", headers=as_journalist("kari"))
+    return response.json()  # type: ignore[no-any-return]
+
+
 def as_journalist(name: str) -> dict[str, str]:
     return {"X-Journalist": name}
 

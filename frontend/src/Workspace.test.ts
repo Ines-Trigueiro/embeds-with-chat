@@ -19,6 +19,7 @@ function fakeApi(
   { list = [], others = {} }: { list?: Embed[]; others?: Record<string, Partial<OpenedEmbed>> } = {},
 ) {
   const created: OpenedEmbed[] = [];
+  const opens: string[] = [];
   const opened = (overrides: Partial<OpenedEmbed>): OpenedEmbed => ({
     id: "e1",
     title: null,
@@ -42,7 +43,10 @@ function fakeApi(
   }
   const api: WorkspaceApi = {
     myEmbeds: async () => list,
-    openEmbed: async (_journalist, id) => opened({ ...embed, ...others[id], id }),
+    openEmbed: async (_journalist, id) => {
+      opens.push(id);
+      return opened({ ...embed, ...others[id], id });
+    },
     createEmbed: async (_journalist, embed_language) => {
       const fresh = opened({ embed_language });
       created.push(fresh);
@@ -65,7 +69,7 @@ function fakeApi(
       url: null,
     }),
   };
-  return { api, created };
+  return { api, created, opens };
 }
 
 function listed(id: string, title: string | null = null): Embed {
@@ -92,7 +96,7 @@ function reply(workspace: Workspace) {
 
 describe("Workspace", () => {
   it("creates a new Embed once when the first message is sent, names it and builds up the reply", async () => {
-    const { api, created } = fakeApi([
+    const { api, created, opens } = fakeApi([
       [
         { event: "title", data: { title: "Rent calculator" } },
         { event: "text", data: { delta: "Here is " } },
@@ -115,6 +119,7 @@ describe("Workspace", () => {
     await workspace.send("Make it blue", "en");
 
     expect(created).toHaveLength(1);
+    expect(opens).toEqual([]); // Creating returns the embed opened: no second request.
     const { embed, turns, streaming } = workspace.getState();
     expect(embed?.id).toBe("e1");
     expect(embed?.title).toBe("Rent calculator");
@@ -405,6 +410,28 @@ describe("Workspace", () => {
       expect(embed).toMatchObject({ id: "e2", title: null, versions: [] });
       expect({ turns, shownNumber, streaming }).toEqual({ turns: [], shownNumber: null, streaming: false });
       expect(embeds?.map((e) => e.title)).toEqual(["Quiz", "Map"]);
+    });
+
+    it("still shows the new Embed language in the list for a Translation it left", async () => {
+      let release = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      const { api } = fakeApi(
+        [[held, { event: "version", data: version(2) }, { event: "done", data: { text: "Translated." } }]],
+        first,
+        { list: [listed("e1", "Quiz"), listed("e2", "Map")], others: { e2: { versions: [], latest_version: null, messages: [] } } },
+      );
+      const workspace = new Workspace(api, "Kari");
+      await workspace.loadEmbeds();
+      await workspace.open("e1");
+      const translating = workspace.translate("da", "en");
+
+      await workspace.open("e2");
+      release();
+      await translating;
+
+      const { embed, embeds } = workspace.getState();
+      expect(embed).toMatchObject({ id: "e2", embed_language: "nb" });
+      expect(embeds?.map((e) => e.embed_language)).toEqual(["da", "nb"]);
     });
 
     it("starts a new Embed with nothing of the one that was open", async () => {

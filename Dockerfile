@@ -4,7 +4,7 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-fund --no-audit
 COPY frontend/ ./
-RUN npm run build
+RUN npm test && npm run build
 
 # Stage 2: the Python backend, serving the built frontend as static files.
 FROM python:3.13-slim

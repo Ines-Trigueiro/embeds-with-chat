@@ -231,8 +231,11 @@ export class Workspace {
       const { id } = await this.ensureEmbed();
       for await (const event of start(id)) {
         if (isCurrent()) this.handle(event);
-        // The journalist left this embed: only its new Title still shows, in the list.
+        // The journalist left this embed: what changed about it still shows, in the list.
         else if (event.event === "title") this.update({ id, title: event.data.title });
+        else if (event.event === "version" && asked.kind === "translation") {
+          this.update({ id, embed_language: asked.language });
+        }
       }
     } catch (e) {
       // A dropped connection: the turn ends, with the reason on it.

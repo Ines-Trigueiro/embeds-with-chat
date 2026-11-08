@@ -39,6 +39,8 @@ from embeds.turns import TurnRefused, journalist_message, translation
 from embeds.version_view import Delivery, VersionOut, VersionView
 
 MAX_ATTACHMENT_BYTES = 5_000_000
+# A publish the Quality check refuses: blockers can't be overridden; warnings need confirming.
+REFUSED_STATUS = {"blocked": 422, "unconfirmed_warnings": 409}
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -203,14 +205,13 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         """Publish, gated by the quality check: blockers refuse, warnings need confirming."""
         embed = owned_embed(embed_id, journalist)
         publishing = versions.publish(embed_id, number, accept_warnings)
-        match publishing.outcome:
-            case "no_such_version":
-                raise HTTPException(status_code=404, detail="No such version")
-            case "blocked" | "unconfirmed_warnings":
-                raise HTTPException(
-                    status_code=422 if publishing.outcome == "blocked" else 409,
-                    detail={"findings": [f.model_dump() for f in publishing.findings]},
-                )
+        if publishing.outcome == "no_such_version":
+            raise HTTPException(status_code=404, detail="No such version")
+        if publishing.outcome in REFUSED_STATUS:
+            raise HTTPException(
+                status_code=REFUSED_STATUS[publishing.outcome],
+                detail={"findings": [f.model_dump() for f in publishing.findings]},
+            )
         return opened(replace(embed, published=True))
 
     @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
