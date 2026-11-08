@@ -95,7 +95,7 @@ The model must support tool calling (for the guides) and image input (for image 
 cd backend
 uv sync
 uv run playwright install chromium   # once; for the browser test
-uv run pytest                        # about 110 tests, a few seconds, no API key needed
+uv run pytest                        # about 140 tests, a few seconds, no API key needed
 uv run mypy && uv run mypy tests     # strict typing
 ```
 
@@ -152,3 +152,10 @@ frontend/src/
 - **Embeds can only use a short allowlist:** Chart.js, Leaflet and D3 at pinned versions, plus OpenStreetMap tiles. Anything else is blocked by the browser and flagged by the quality check.
 - **No manual HTML editing.** Journalists shouldn't have to touch code. Changes go through the chat.
 - **Single process per origin, SQLite.** Fine for a newsroom tool's load; not built to scale horizontally.
+
+## What I would do next
+
+- **Catch retyped figures:** warn when numbers from a dataset's sample rows appear literally in the code.
+- **Visual regression:** render every new version headlessly at 320px and flag horizontal overflow or clipped text. Screenshots caught two such problems during development that no test did.
+- **Access control:** real login, sharing embeds within a desk, and unpublishing.
+- **Harden the quality check:** parse scripts properly with a JS parser instead of using patterns, and check dates as well as sources.

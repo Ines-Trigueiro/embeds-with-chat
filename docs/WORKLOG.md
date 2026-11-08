@@ -2,6 +2,13 @@
 
 Notes on how I steered the coding assistant (Claude Code) during this assignment.
 
+## Time
+
+About 5 hours in total:
+- **About 1 hour** working out the solution with my agentic workflow: the design interview, the tickets and the core build (sections 1–5).
+- **About 1 hour** testing the result and taking the UI fixes through the same workflow (section 6).
+- **The rest** on and off with the assistant, mostly the clean-up passes (sections 7–8).
+
 ## 1. Design interview (before any code)
 
 I had the assistant interview me in rounds about the design, with a recommended answer for every question, before any code was written. The output was `GLOSSARY.md` and three ADRs in `docs/adr/`.

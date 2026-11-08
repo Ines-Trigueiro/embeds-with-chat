@@ -223,3 +223,6 @@ node_modules/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# The assignment text stays local
+docs/original_task.md
