@@ -36,7 +36,7 @@ class Finding:
 
 def check(html: str, embed_origin: str) -> list[Finding]:
     """Check the document as the model wrote it: pass it with dataset markers empty,
-    since a dataset's cells are data, not code (see `datasets.without_dataset_contents`)."""
+    since a dataset's cells are data, not code (ADR 0002; `version_view` does this)."""
     soup = BeautifulSoup(html, "html.parser")
     allowed = allowed_url_prefixes(embed_origin)
     return [

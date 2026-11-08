@@ -200,6 +200,23 @@ def test_data_in_a_dataset_never_trips_the_quality_check(
     assert version["findings"] == []
 
 
+def test_dataset_cells_never_produce_findings_on_open_or_on_publish(
+    editor: TestClient, fake_model: FakeChatModel
+) -> None:
+    cells = "navn;lenke;skript\nSSB;https://ssb.no/tabell;document.cookie\n"  # a link, a cookie read
+    embed_id = new_embed(editor)
+    dataset_id = upload(editor, embed_id, "lenker.csv", cells.encode()).json()["id"]
+    fake_model.replies.append(f"```html\n{using(dataset_id)}\n```")
+    chat(editor, embed_id, "Lag en liste")
+
+    opened = editor.get(f"/api/embeds/{embed_id}", headers=KARI).json()
+    published = editor.post(f"/api/embeds/{embed_id}/versions/1/publish", headers=KARI)
+
+    assert opened["versions"][0]["findings"] == []
+    assert published.status_code == 200  # neither refused (422) nor asking to confirm (409)
+    assert published.json()["versions"][0]["findings"] == []
+
+
 def test_dates_in_xlsx_files_stay_dates(editor: TestClient, fake_model: FakeChatModel) -> None:
     import datetime
 

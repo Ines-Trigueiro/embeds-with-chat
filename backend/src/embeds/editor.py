@@ -20,13 +20,11 @@ from embeds.datasets import (
     ParsedDataset,
     is_dataset_file,
     parse_dataset,
-    without_dataset_contents,
 )
-from embeds.delivery import EMBED_ID, embed_url, snippet, test_article_page
+from embeds.delivery import EMBED_ID, test_article_page
 from embeds.images import image_type, image_url
 from embeds.languages import Language
 from embeds.previews import Previews
-from embeds.quality_check import Finding, Severity, check, has_blockers
 from embeds.store import (
     Attachment,
     AttachmentKind,
@@ -38,6 +36,7 @@ from embeds.store import (
     Version,
 )
 from embeds.turns import TurnRefused, journalist_message, translation
+from embeds.version_view import Delivery, VersionOut, VersionView
 
 MAX_ATTACHMENT_BYTES = 5_000_000
 
@@ -102,32 +101,6 @@ class NewMessage(BaseModel):
     language: Language = "nb"  # The journalist's chat language.
 
 
-class Delivery(BaseModel):
-    """What the journalist pastes into an article."""
-
-    snippet: str
-    embed_url: str
-
-
-class FindingOut(BaseModel):
-    rule: str
-    severity: Severity
-    detail: str
-
-    @classmethod
-    def of(cls, finding: Finding) -> Self:
-        return cls(rule=finding.rule, severity=finding.severity, detail=finding.detail)
-
-
-class VersionOut(BaseModel):
-    number: int
-    created_at: str
-    preview_url: str
-    published: bool
-    delivery: Delivery | None  # Pinned to this version; only once it is published.
-    findings: list[FindingOut]  # From the quality check.
-
-
 class MessageOut(BaseModel):
     role: Role
     kind: MessageKind  # A translation's text is the language it translated into.
@@ -188,41 +161,21 @@ class OpenedEmbed(EmbedOut):
 
 def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     store = Store(settings.database_path)
-    previews = Previews.from_settings(settings)
     app = FastAPI(title="Embeds with chat – editor")
 
     origin = settings.embed_origin
-
-    def delivery(embed_id: str, number: int | None = None) -> Delivery:
-        return Delivery(
-            snippet=snippet(origin, embed_id, number),
-            embed_url=embed_url(origin, embed_id, number),
-        )
-
-    def quality_findings(version: Version) -> list[Finding]:
-        return check(without_dataset_contents(version.html), origin)
-
-    def version_out(version: Version) -> VersionOut:
-        embed_id, number = version.embed_id, version.number
-        return VersionOut(
-            number=number,
-            created_at=version.created_at,
-            preview_url=previews.url(embed_id, number),
-            published=version.published,
-            delivery=delivery(embed_id, number) if version.published else None,
-            findings=[FindingOut.of(f) for f in quality_findings(version)],
-        )
+    versions = VersionView(store, Previews.from_settings(settings), origin)
 
     def opened(embed: Embed) -> OpenedEmbed:
-        versions = [version_out(v) for v in store.versions_of(embed.id)]
+        seen = versions.of_embed(embed.id)
         return OpenedEmbed(
             **EmbedOut.of(embed).model_dump(),
             messages=[MessageOut.of(m) for m in store.messages_of(embed.id)],
             attachments=[AttachmentOut.of(a, origin) for a in store.attachments_of(embed.id)],
-            versions=versions,
-            latest_version=versions[-1] if versions else None,
+            versions=seen.versions,
+            latest_version=seen.versions[-1] if seen.versions else None,
             progress_frame_url=f"{origin}/progress-frame",
-            delivery=delivery(embed.id) if embed.published else None,
+            delivery=seen.delivery,
         )
 
     def owned_embed(embed_id: str, journalist: str) -> Embed:
@@ -249,17 +202,15 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     ) -> OpenedEmbed:
         """Publish, gated by the quality check: blockers refuse, warnings need confirming."""
         embed = owned_embed(embed_id, journalist)
-        version = store.version(embed_id, number)
-        if version is None:
-            raise HTTPException(status_code=404, detail="No such version")
-        findings = quality_findings(version)
-        blocked = has_blockers(findings)
-        if blocked or (findings and not accept_warnings):
-            raise HTTPException(
-                status_code=422 if blocked else 409,
-                detail={"findings": [FindingOut.of(f).model_dump() for f in findings]},
-            )
-        store.publish(embed_id, number)
+        publishing = versions.publish(embed_id, number, accept_warnings)
+        match publishing.outcome:
+            case "no_such_version":
+                raise HTTPException(status_code=404, detail="No such version")
+            case "blocked" | "unconfirmed_warnings":
+                raise HTTPException(
+                    status_code=422 if publishing.outcome == "blocked" else 409,
+                    detail={"findings": [f.model_dump() for f in publishing.findings]},
+                )
         return opened(replace(embed, published=True))
 
     @app.post("/api/embeds/{embed_id}/attachments", status_code=201)
@@ -309,7 +260,7 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
         async def server_sent_events() -> AsyncIterator[str]:
             async for event, data in turn:
                 if isinstance(data, Version):
-                    payload = version_out(data).model_dump()
+                    payload = versions.of(data).model_dump()
                 else:
                     payload = data
                 yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
