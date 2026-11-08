@@ -110,6 +110,20 @@ class Message:
     kind: MessageKind = "message"
 
 
+@dataclass(frozen=True)
+class TurnRecord:
+    """What a finished turn leaves behind: the journalist's request and the model's reply,
+    with the Version, the Title and the new Embed language if the turn produced them."""
+
+    request: str  # The journalist's message, or a Translation's new embed language.
+    kind: MessageKind
+    reply: str
+    guides: tuple[str, ...] = ()
+    html: str | None = None
+    title: str | None = None
+    embed_language: Language | None = None
+
+
 AttachmentKind = Literal["dataset", "image"]
 
 
@@ -194,27 +208,53 @@ class Store:
             ).fetchone()
         return _embed(row) if row else None
 
-    def add_message(
-        self,
+    def record_turn(self, embed_id: str, turn: TurnRecord) -> Version | None:
+        """Everything one finished turn leaves behind, in one transaction: all of it or nothing."""
+        with self._connect() as db:
+            if turn.title is not None:  # Only on a still-untitled embed: a rename always wins.
+                db.execute(
+                    "UPDATE embeds SET title = ? WHERE id = ? AND title = ''", (turn.title, embed_id)
+                )
+            if turn.embed_language is not None:
+                db.execute(
+                    "UPDATE embeds SET embed_language = ? WHERE id = ?", (turn.embed_language, embed_id)
+                )
+            version = self._add_version(db, embed_id, turn.html) if turn.html else None
+            self._add_message(db, embed_id, "journalist", turn.request, None, (), turn.kind)
+            number = version.number if version else None
+            self._add_message(db, embed_id, "model", turn.reply, number, turn.guides, "message")
+        return version
+
+    @staticmethod
+    def _add_message(
+        db: sqlite3.Connection,
         embed_id: str,
         role: Role,
         text: str,
-        version_number: int | None = None,
-        guides: tuple[str, ...] = (),
-        kind: MessageKind = "message",
-    ) -> Message:
-        with self._connect() as db:
-            (seq,) = db.execute(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM messages WHERE embed_id = ?", (embed_id,)
-            ).fetchone()
-            message = Message(embed_id, seq, role, text, version_number, _now(), guides, kind)
-            db.execute(
-                "INSERT INTO messages"
-                " (embed_id, seq, role, text, version_number, created_at, guides, kind)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (embed_id, seq, role, text, version_number, message.created_at, json.dumps(guides), kind),
-            )
-        return message
+        version_number: int | None,
+        guides: tuple[str, ...],
+        kind: MessageKind,
+    ) -> None:
+        (seq,) = db.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 FROM messages WHERE embed_id = ?", (embed_id,)
+        ).fetchone()
+        db.execute(
+            "INSERT INTO messages"
+            " (embed_id, seq, role, text, version_number, created_at, guides, kind)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (embed_id, seq, role, text, version_number, _now(), json.dumps(guides), kind),
+        )
+
+    @staticmethod
+    def _add_version(db: sqlite3.Connection, embed_id: str, html: str) -> Version:
+        (number,) = db.execute(
+            "SELECT COALESCE(MAX(number), 0) + 1 FROM versions WHERE embed_id = ?", (embed_id,)
+        ).fetchone()
+        version = Version(embed_id, number, html, _now())
+        db.execute(
+            "INSERT INTO versions VALUES (?, ?, ?, ?)", (embed_id, number, html, version.created_at)
+        )
+        return version
 
     def messages_of(self, embed_id: str) -> list[Message]:
         """The embed's conversation, oldest first."""
@@ -225,18 +265,6 @@ class Store:
         return [
             Message(**{**dict(row), "guides": tuple(json.loads(row["guides"]))}) for row in rows
         ]
-
-    def add_version(self, embed_id: str, html: str) -> Version:
-        with self._connect() as db:
-            (number,) = db.execute(
-                "SELECT COALESCE(MAX(number), 0) + 1 FROM versions WHERE embed_id = ?", (embed_id,)
-            ).fetchone()
-            version = Version(embed_id, number, html, _now())
-            db.execute(
-                "INSERT INTO versions VALUES (?, ?, ?, ?)",
-                (embed_id, number, html, version.created_at),
-            )
-        return version
 
     def version(self, embed_id: str, number: int) -> Version | None:
         with self._connect() as db:

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field, StringConstraints
 
-from embeds.chat import ChatEvent, chat_turn, translation_turn
+from embeds.chat import ChatEvent
 from embeds.config import Settings
 from embeds.datasets import (
     DatasetError,
@@ -37,6 +37,7 @@ from embeds.store import (
     Store,
     Version,
 )
+from embeds.turns import TurnRefused, journalist_message, translation
 
 MAX_ATTACHMENT_BYTES = 5_000_000
 
@@ -319,22 +320,22 @@ def create_editor_app(settings: Settings, chat_model: BaseChatModel) -> FastAPI:
     def send_message(embed_id: str, body: NewMessage, journalist: Journalist) -> StreamingResponse:
         embed = owned_embed(embed_id, journalist)
         return streamed(
-            chat_turn(store, chat_model, embed, body.content, body.language, settings.embed_origin)
+            journalist_message(
+                store, chat_model, embed, body.content, body.language, settings.embed_origin
+            )
         )
 
     @app.post("/api/embeds/{embed_id}/translations")
     def translate(embed_id: str, body: NewTranslation, journalist: Journalist) -> StreamingResponse:
         """A Translation (ADR 0004): the current version, rewritten into a new embed language."""
         embed = owned_embed(embed_id, journalist)
-        if store.latest_version(embed_id) is None:
-            raise HTTPException(status_code=409, detail="There is no version to translate yet.")
-        if body.embed_language == embed.embed_language:
-            raise HTTPException(status_code=409, detail="The embed is already in that language.")
-        return streamed(
-            translation_turn(
+        try:
+            turn = translation(
                 store, chat_model, embed, body.embed_language, body.language, settings.embed_origin
             )
-        )
+        except TurnRefused as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return streamed(turn)
 
     @app.get("/test-article", response_class=HTMLResponse)
     def test_article(
